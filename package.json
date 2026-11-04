@@ -1,0 +1,31 @@
+{
+  "name": "databank",
+  "version": "1.0.0",
+  "description": "NoSQL (MongoDB) data layer and REST API for a tourism recommendation platform",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node scripts/seed.js",
+    "recompute": "node scripts/recompute-stats.js",
+    "explain": "node scripts/explain.js",
+    "inspect-db": "node scripts/inspect-db.js",
+    "test": "node --test --test-reporter=spec --test-concurrency=1 test/api.test.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.3",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongodb": "^6.22.0",
+    "zod": "^4.6.7"
+  },
+  "private": true
+}
