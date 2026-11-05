@@ -64,7 +64,11 @@ Vercel detects the Express app automatically (`src/app.js` exports it as the def
 
 1. **MongoDB Atlas** (free M0 cluster): create a database user, and under *Network Access* allow `0.0.0.0/0`
    (Vercel uses changing IP addresses). Copy the connection string (`mongodb+srv://user:password@cluster.../`).
-2. **Load the data into Atlas from your computer** (this also creates the indexes):
+2. **Load the data into Atlas**, using either option:
+   * **Easiest:** add the Vercel variable `AUTO_SEED` = `true` (step 3). On the first request, a completely empty database is
+     filled with the demo data (64 destinations, about 100 synthetic users); a database that already has data is never touched.
+     Remove the variable afterwards if you like.
+   * **From your computer** (full data set, 300 users; this drops and recreates the collections):
    ```bash
    MONGO_URI="mongodb+srv://user:password@cluster.mongodb.net" npm run seed
    # Windows PowerShell:  $env:MONGO_URI="mongodb+srv://..."; npm run seed
@@ -76,6 +80,7 @@ Vercel detects the Express app automatically (`src/app.js` exports it as the def
    | `MONGO_URI` | the Atlas connection string |
    | `DB_NAME` | `tourism_recsys` |
    | `JWT_SECRET` | a long random string |
+   | `AUTO_SEED` | `true` (optional, see step 2) |
 
 4. Open `https://<your-project>.vercel.app/api/health`. A configuration error (missing variable, wrong password,
    Atlas network access) is shown as readable JSON (HTTP 503) instead of a bare 500; the Vercel *Logs* tab has details.
@@ -98,6 +103,7 @@ Notes: the rate limiter and the database connection live per function instance.
 | `JWT_EXPIRES_IN` | `2h` | token lifetime |
 | `AUTH_RATE_LIMIT` | `50` | max login/register requests per IP per 15 min |
 | `MONGO_POOL_SIZE` | `10` | MongoDB connection pool size |
+| `AUTO_SEED` | unset | `true`: fill a completely empty database with demo data on the first request (`AUTO_SEED_USERS`, default 100) |
 
 ## npm scripts
 

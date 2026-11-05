@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import { config, configProblem } from './config.js';
 import { connect, ensureIndexes, getDb, isConnected } from './db.js';
+import { seedDatabase } from './services/seed.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import itemRoutes from './routes/items.js';
@@ -10,6 +11,23 @@ import interactionRoutes from './routes/interactions.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 let connecting = null;
+
+/**
+ * Opt-in (AUTO_SEED=true): fills a completely empty database with the demo data on the first request,
+ * so a fresh deployment works without running the seed script by hand. Never touches a database that has data.
+ */
+async function autoSeed(db) {
+  if (process.env.AUTO_SEED !== 'true') return;
+  try {
+    const counts = await Promise.all(['items', 'users', 'interactions'].map((c) => db.collection(c).estimatedDocumentCount()));
+    if (counts.some((n) => n > 0)) return;
+    const users = Number(process.env.AUTO_SEED_USERS || 100);
+    const r = await seedDatabase(db, { users, drop: false });
+    console.log(`AUTO_SEED: loaded ${r.items} items, ${r.users} users, ${r.interactions} interactions`);
+  } catch (err) {
+    console.error('AUTO_SEED failed:', err.message);
+  }
+}
 
 /**
  * Serverless platforms (Vercel) load this module and call the app per request, there is no start-up hook.
@@ -25,6 +43,7 @@ async function ensureReady(_req, res, next) {
       .then(async (db) => {
         // idempotent; makes search work even on an empty database (text/geo queries need their indexes)
         await ensureIndexes(db).catch((err) => console.error('Index creation failed:', err.message));
+        await autoSeed(db);
       })
       .catch((err) => { connecting = null; throw err; });
     await connecting;
