@@ -80,8 +80,12 @@ Vercel detects the Express app automatically (`src/app.js` exports it as the def
 4. Open `https://<your-project>.vercel.app/api/health`. A configuration error (missing variable, wrong password,
    Atlas network access) is shown as readable JSON (HTTP 503) instead of a bare 500; the Vercel *Logs* tab has details.
 
-Notes: the rate limiter and the database connection live per function instance; `npm run indexes` creates the
-indexes without touching the data.
+**Troubleshooting.** Open `/api/health`: it shows the database name and the number of items, users and interactions.
+`"items":0` means the database is empty, so run the seed (step 2) with the *same* `MONGO_URI` and `DB_NAME` as in Vercel.
+The indexes are created automatically on the first request. A 500 response contains a short `detail` label
+(for example `MongoServerError: IndexNotFound`); the full error is in the Vercel *Logs* tab.
+
+Notes: the rate limiter and the database connection live per function instance.
 
 ## Configuration (`.env`)
 

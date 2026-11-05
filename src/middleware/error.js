@@ -24,5 +24,6 @@ export function errorHandler(err, _req, res, _next) {
     return res.status(400).json({ error: 'BadRequest', message: 'Malformed JSON body' });
   }
   console.error(err);
-  res.status(500).json({ error: 'InternalError', message: 'Unexpected server error' });
+  const detail = [err?.name, err?.codeName].filter(Boolean).join(': ');
+  res.status(500).json({ error: 'InternalError', message: 'Unexpected server error', ...(detail && { detail }) });
 }

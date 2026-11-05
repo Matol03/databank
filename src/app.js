@@ -2,7 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import { config, configProblem } from './config.js';
-import { connect, getDb, isConnected } from './db.js';
+import { connect, ensureIndexes, getDb, isConnected } from './db.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import itemRoutes from './routes/items.js';
@@ -22,6 +22,10 @@ async function ensureReady(_req, res, next) {
     const problem = configProblem();
     if (problem) throw new Error(problem);
     connecting ??= connect(config.mongoUri, config.dbName, { exitOnFail: false })
+      .then(async (db) => {
+        // idempotent; makes search work even on an empty database (text/geo queries need their indexes)
+        await ensureIndexes(db).catch((err) => console.error('Index creation failed:', err.message));
+      })
       .catch((err) => { connecting = null; throw err; });
     await connecting;
     next();
@@ -53,8 +57,19 @@ export function createApp() {
   });
 
   app.get('/api/health', async (_req, res) => {
-    await getDb().command({ ping: 1 });
-    res.json({ status: 'ok', database: 'up', time: new Date().toISOString() });
+    const db = getDb();
+    await db.command({ ping: 1 });
+    const [items, users, interactions] = await Promise.all(
+      ['items', 'users', 'interactions'].map((c) => db.collection(c).estimatedDocumentCount()),
+    );
+    const body = {
+      status: 'ok', database: 'up', name: db.databaseName,
+      counts: { items, users, interactions }, time: new Date().toISOString(),
+    };
+    if (items === 0) {
+      body.hint = 'The database is empty. Run "npm run seed" with MONGO_URI (and DB_NAME) set to the same values as in this deployment.';
+    }
+    res.json(body);
   });
 
   app.use('/api/auth', authRoutes);
