@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/server.js",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node src/server.js",
@@ -14,7 +14,8 @@
     "recompute": "node scripts/recompute-stats.js",
     "explain": "node scripts/explain.js",
     "inspect-db": "node scripts/inspect-db.js",
-    "test": "node --test --test-reporter=spec --test-concurrency=1 test/api.test.js"
+    "test": "node --test --test-reporter=spec --test-concurrency=1 test/api.test.js",
+    "indexes": "node scripts/create-indexes.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

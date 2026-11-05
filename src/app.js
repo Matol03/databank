@@ -11,9 +11,21 @@ import { notFound, errorHandler } from './middleware/error.js';
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
+  // behind a reverse proxy (Vercel, Render, ...) req.ip must come from X-Forwarded-For,
+  // otherwise every visitor shares one rate-limit bucket
+  if (process.env.VERCEL || process.env.TRUST_PROXY) app.set('trust proxy', 1);
   app.use(helmet());
   app.use(cors());
   app.use(express.json({ limit: '100kb' }));
+
+  app.get('/', (_req, res) => {
+    res.json({
+      name: 'Tourism recommender platform API',
+      status: 'running',
+      try: ['/api/health', '/api/items/popular?limit=3', '/api/items/search?q=lake'],
+      docs: 'https://github.com/Matol03/databank/blob/main/docs/API.md',
+    });
+  });
 
   app.get('/api/health', async (_req, res) => {
     await getDb().command({ ping: 1 });

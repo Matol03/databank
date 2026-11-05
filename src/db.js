@@ -3,12 +3,17 @@ import { MongoClient } from 'mongodb';
 let client = null;
 let db = null;
 
-export async function connect(uri, dbName) {
-  client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
+export async function connect(uri, dbName, { exitOnFail = true } = {}) {
+  client = new MongoClient(uri, {
+    serverSelectionTimeoutMS: 5000,
+    maxPoolSize: Number(process.env.MONGO_POOL_SIZE || 10),
+  });
   try {
     await client.connect();
   } catch (err) {
-    console.error(`Cannot connect to MongoDB at ${uri}: ${err.message}`);
+    client = null;
+    if (!exitOnFail) throw err; // serverless: the caller reports the error as JSON
+    console.error(`Cannot connect to MongoDB: ${err.message}`);
     console.error('Start MongoDB first (see README.md) and check MONGO_URI in .env');
     process.exit(1);
   }

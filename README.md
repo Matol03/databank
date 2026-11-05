@@ -58,6 +58,31 @@ TOKEN=$(curl -s -X POST localhost:3000/api/auth/login -H 'Content-Type: applicat
 curl localhost:3000/api/users/me/history?limit=3 -H "Authorization: Bearer $TOKEN"
 ```
 
+## Deploying to Vercel (serverless)
+
+The repository contains a serverless entry point (`api/index.js`) and `vercel.json`. Vercel has **no database**, so a hosted MongoDB is required.
+
+1. **MongoDB Atlas** (free M0 cluster): create a database user, and under *Network Access* allow `0.0.0.0/0`
+   (Vercel uses changing IP addresses). Copy the connection string (`mongodb+srv://user:password@cluster.../`).
+2. **Load the data into Atlas from your computer** (this also creates the indexes):
+   ```bash
+   MONGO_URI="mongodb+srv://user:password@cluster.mongodb.net" npm run seed
+   # Windows PowerShell:  $env:MONGO_URI="mongodb+srv://..."; npm run seed
+   ```
+3. **Vercel project → Settings → Environment Variables**, then redeploy:
+
+   | Name | Value |
+   |---|---|
+   | `MONGO_URI` | the Atlas connection string |
+   | `DB_NAME` | `tourism_recsys` |
+   | `JWT_SECRET` | a long random string |
+
+4. Open `https://<your-project>.vercel.app/api/health`. A configuration error is shown as readable JSON
+   (HTTP 503) instead of a bare 500; the Vercel *Logs* tab has details.
+
+Notes: the rate limiter and the database connection live per function instance; `npm run indexes` creates the
+indexes without touching the data.
+
 ## Configuration (`.env`)
 
 | Variable | Default | Description |
@@ -68,6 +93,7 @@ curl localhost:3000/api/users/me/history?limit=3 -H "Authorization: Bearer $TOKE
 | `JWT_SECRET` | dev value | **set a long random string** (required when `NODE_ENV=production`) |
 | `JWT_EXPIRES_IN` | `2h` | token lifetime |
 | `AUTH_RATE_LIMIT` | `50` | max login/register requests per IP per 15 min |
+| `MONGO_POOL_SIZE` | `10` | MongoDB connection pool size |
 
 ## npm scripts
 
@@ -78,6 +104,7 @@ curl localhost:3000/api/users/me/history?limit=3 -H "Authorization: Bearer $TOKE
 | `npm test` | 19 API tests (use a separate database `tourism_recsys_test`, which is dropped afterwards) |
 | `npm run explain` | prints the query plan of the main queries (IXSCAN vs COLLSCAN) |
 | `npm run inspect-db` | collection sizes, indexes and sample documents |
+| `npm run indexes` | creates the indexes without changing the data |
 | `npm run recompute` | rebuilds all denormalised counters from the interactions |
 
 ## Data model in one picture
@@ -105,7 +132,8 @@ src/
   middleware/                             JWT authentication / roles, error handler
   routes/                                 auth, users, items, interactions
   services/                               items (search), interactions (counters, history), stats (recompute)
-scripts/                                  seed, explain, inspect-db, recompute-stats
+api/index.js, vercel.json                 serverless entry point for Vercel
+scripts/                                  seed, create-indexes, explain, inspect-db, recompute-stats
 data/destinations.json                    the item catalogue (64 destinations; coordinates ≈ 1 km accuracy)
 test/api.test.js                          API tests (node:test)
 docs/                                     API reference, project proposal
