@@ -1,9 +1,16 @@
 import 'dotenv/config';
 
-const isProd = process.env.NODE_ENV === 'production';
 const jwtSecret = process.env.JWT_SECRET || 'dev-only-secret-change-me';
-if (isProd && jwtSecret === 'dev-only-secret-change-me') {
-  throw new Error('JWT_SECRET must be set in production');
+
+/** Returns a human-readable message if the environment is not configured for production, else null. */
+export function configProblem() {
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    return 'JWT_SECRET must be set in production. Add it to the environment variables of the project.';
+  }
+  if (process.env.VERCEL && !process.env.MONGO_URI) {
+    return 'MONGO_URI is not set. Add the MongoDB Atlas connection string to the environment variables of the project.';
+  }
+  return null;
 }
 
 export const config = {

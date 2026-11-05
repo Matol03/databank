@@ -60,7 +60,7 @@ curl localhost:3000/api/users/me/history?limit=3 -H "Authorization: Bearer $TOKE
 
 ## Deploying to Vercel (serverless)
 
-The repository contains a serverless entry point (`api/index.js`) and `vercel.json`. Vercel has **no database**, so a hosted MongoDB is required.
+Vercel detects the Express app automatically (`src/app.js` exports it as the default export and connects to the database on the first request). Vercel has **no database**, so a hosted MongoDB is required.
 
 1. **MongoDB Atlas** (free M0 cluster): create a database user, and under *Network Access* allow `0.0.0.0/0`
    (Vercel uses changing IP addresses). Copy the connection string (`mongodb+srv://user:password@cluster.../`).
@@ -77,8 +77,8 @@ The repository contains a serverless entry point (`api/index.js`) and `vercel.js
    | `DB_NAME` | `tourism_recsys` |
    | `JWT_SECRET` | a long random string |
 
-4. Open `https://<your-project>.vercel.app/api/health`. A configuration error is shown as readable JSON
-   (HTTP 503) instead of a bare 500; the Vercel *Logs* tab has details.
+4. Open `https://<your-project>.vercel.app/api/health`. A configuration error (missing variable, wrong password,
+   Atlas network access) is shown as readable JSON (HTTP 503) instead of a bare 500; the Vercel *Logs* tab has details.
 
 Notes: the rate limiter and the database connection live per function instance; `npm run indexes` creates the
 indexes without touching the data.
@@ -127,12 +127,11 @@ interactions   { userId, itemId, type, rating?, weight, context{}, createdAt }  
 
 ```
 src/
-  server.js, app.js, config.js, db.js     start-up, Express app, settings, connection + indexes
+  server.js, app.js, config.js, db.js     start-up (npm start), Express app (default export), settings, connection + indexes
   schemas.js, constants.js, errors.js     validation (zod), enums and weights, error helpers
   middleware/                             JWT authentication / roles, error handler
   routes/                                 auth, users, items, interactions
   services/                               items (search), interactions (counters, history), stats (recompute)
-api/index.js, vercel.json                 serverless entry point for Vercel
 scripts/                                  seed, create-indexes, explain, inspect-db, recompute-stats
 data/destinations.json                    the item catalogue (64 destinations; coordinates ≈ 1 km accuracy)
 test/api.test.js                          API tests (node:test)

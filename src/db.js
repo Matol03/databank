@@ -21,6 +21,8 @@ export async function connect(uri, dbName, { exitOnFail = true } = {}) {
   return db;
 }
 
+export const isConnected = () => db !== null;
+
 export function getDb() {
   if (!db) throw new Error('Database not connected');
   return db;

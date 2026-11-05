@@ -1,12 +1,35 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import { getDb } from './db.js';
+import { config, configProblem } from './config.js';
+import { connect, getDb, isConnected } from './db.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import itemRoutes from './routes/items.js';
 import interactionRoutes from './routes/interactions.js';
 import { notFound, errorHandler } from './middleware/error.js';
+
+let connecting = null;
+
+/**
+ * Serverless platforms (Vercel) load this module and call the app per request, there is no start-up hook.
+ * So the database connection is opened lazily on the first request and then reused by the warm instance.
+ * Misconfiguration is reported as readable JSON (HTTP 503) instead of a crash.
+ */
+async function ensureReady(_req, res, next) {
+  if (isConnected()) return next();
+  try {
+    const problem = configProblem();
+    if (problem) throw new Error(problem);
+    connecting ??= connect(config.mongoUri, config.dbName, { exitOnFail: false })
+      .catch((err) => { connecting = null; throw err; });
+    await connecting;
+    next();
+  } catch (err) {
+    console.error('Start-up failed:', err.message);
+    res.status(503).json({ error: 'ServiceUnavailable', message: err.message });
+  }
+}
 
 export function createApp() {
   const app = express();
@@ -17,6 +40,8 @@ export function createApp() {
   app.use(helmet());
   app.use(cors());
   app.use(express.json({ limit: '100kb' }));
+
+  app.use(ensureReady);
 
   app.get('/', (_req, res) => {
     res.json({
@@ -41,3 +66,6 @@ export function createApp() {
   app.use(errorHandler);
   return app;
 }
+
+// default export: the ready-to-use Express app (required by Vercel's Express runtime)
+export default createApp();
