@@ -38,6 +38,41 @@ async function applyEffects(db, { itemId, userId, category }, e, pushActivity) {
   if (Object.keys(update).length) await db.collection('users').updateOne({ _id: userId }, update);
 }
 
+async function storeFavoritePlace(db, userId, favoritePlace) {
+  // Replace by itemId, not whole-object equality, so re-likes cannot create duplicates.
+  await db.collection('users').updateOne({ _id: userId }, [
+    {
+      $set: {
+        favoritePlaces: {
+          $concatArrays: [
+            {
+              $filter: {
+                input: { $ifNull: ['$favoritePlaces', []] },
+                as: 'favorite',
+                cond: { $ne: ['$favorite.itemId', { $literal: favoritePlace.itemId }] },
+              },
+            },
+            [{ $literal: favoritePlace }],
+          ],
+        },
+      },
+    },
+  ]);
+}
+
+function toFavoritePlace(interaction, item) {
+  const snapshot = interaction.destinationSnapshot || item || {};
+  return {
+    itemId: interaction.itemId,
+    interactionId: interaction._id,
+    name: snapshot.name || 'Unknown destination',
+    city: snapshot.city || '',
+    country: snapshot.country || '',
+    category: snapshot.category || '',
+    likedAt: interaction.createdAt || new Date(),
+  };
+}
+
 export async function recordInteraction(db, userId, input) {
   const itemId = toObjectId(input.itemId, 'itemId');
   const item = await db.collection('items').findOne(
@@ -52,7 +87,32 @@ export async function recordInteraction(db, userId, input) {
   let effects;
   let doc;
 
-  if (type === 'rating') {
+  if (type === 'bookmark') {
+    // A like is a state, not a repeated event: keep one bookmark per user/place.
+    const existing = await col.findOne({ userId, itemId, type: 'bookmark' });
+    if (existing) {
+      await storeFavoritePlace(db, userId, toFavoritePlace(existing, item));
+      return existing;
+    }
+
+    doc = {
+      userId, itemId, type, weight: weightOf(type), createdAt: now,
+      ...(context && { context }),
+      destinationSnapshot: {
+        name: item.name,
+        city: item.city,
+        country: item.country,
+        category: item.category,
+      },
+    };
+    const { insertedId } = await col.insertOne(doc);
+    doc._id = insertedId;
+    await storeFavoritePlace(db, userId, toFavoritePlace(doc, item));
+    effects = {
+      views: 0, ratingCount: 0, ratingSum: 0,
+      popularity: POPULARITY.bookmark, signal: tasteSignal('bookmark'),
+    };
+  } else if (type === 'rating') {
     // one rating per (user, item): upsert and look at the previous value
     const before = await col.findOneAndUpdate(
       { userId, itemId, type: 'rating' },
@@ -70,14 +130,6 @@ export async function recordInteraction(db, userId, input) {
     doc = {
       userId, itemId, type, weight: weightOf(type), createdAt: now,
       ...(context && { context }),
-      ...(type === 'bookmark' && {
-        destinationSnapshot: {
-          name: item.name,
-          city: item.city,
-          country: item.country,
-          category: item.category,
-        },
-      }),
     };
     const { insertedId } = await col.insertOne(doc);
     doc._id = insertedId;
@@ -103,7 +155,22 @@ export async function removeInteraction(db, user, id) {
   }
   await col.deleteOne({ _id: doc._id });
 
-  const item = await db.collection('items').findOne({ _id: doc.itemId }, { projection: { category: 1 } });
+  const item = await db.collection('items').findOne(
+    { _id: doc.itemId },
+    { projection: { name: 1, category: 1, city: 1, country: 1 } },
+  );
+  if (doc.type === 'bookmark') {
+    const remaining = await col.find({ userId: doc.userId, itemId: doc.itemId, type: 'bookmark' })
+      .sort({ createdAt: -1 }).limit(1).next();
+    if (remaining) {
+      await storeFavoritePlace(db, doc.userId, toFavoritePlace(remaining, item));
+    } else {
+      await db.collection('users').updateOne(
+        { _id: doc.userId },
+        { $pull: { favoritePlaces: { itemId: doc.itemId } } },
+      );
+    }
+  }
   if (item) {
     const isRating = doc.type === 'rating';
     await applyEffects(db, { itemId: doc.itemId, userId: doc.userId, category: item.category }, {
