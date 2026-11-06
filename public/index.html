@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f4ee">
+  <meta name="description" content="Discover destinations, find your next escape, and save the places you want to visit.">
+  <title>Wayfarer — Find your next somewhere</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://images.unsplash.com">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="announcement"><span class="live-dot"></span> New places. Fresh perspectives. Your next story starts here. <a href="#discover">Start exploring ↗</a></div>
+  <header class="header">
+    <a class="brand" href="#top" aria-label="Wayfarer home"><span class="brand-symbol">w.</span><span>wayfarer<span class="brand-dot">.</span></span></a>
+    <nav class="desktop-nav" aria-label="Main navigation"><a class="active" href="#discover">Discover</a><a href="#philosophy">Our philosophy</a><a href="#how">How it works</a></nav>
+    <div class="header-actions">
+      <button class="nearby-link" id="nearby" type="button">⌖ <span>Near me</span></button>
+      <button class="button button-dark button-small" id="auth-open" type="button">Sign in ↗</button>
+      <button class="account-button" id="account" type="button" hidden><span class="avatar" id="avatar">W</span><span id="account-name">Account</span><span>⌄</span></button>
+      <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false"><span></span><span></span></button>
+    </div>
+  </header>
+  <nav class="mobile-nav" id="mobile-nav" hidden><a href="#discover">Discover</a><a href="#philosophy">Our philosophy</a><a href="#how">How it works</a><button id="mobile-auth" type="button">Sign in / Create account</button></nav>
+
+  <main id="top">
+    <section class="hero">
+      <img class="hero-photo" src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2200&q=88" alt="Mountain peaks and a distant valley">
+      <div class="hero-shade"></div>
+      <div class="hero-inner wrap">
+        <div class="hero-copy">
+          <div class="eyebrow light"><i></i> THE WORLD IS CLOSER THAN YOU THINK</div>
+          <h1>Find your next<br><em>somewhere.</em></h1>
+          <p>Big landscapes, little-known places, and the moments in between. Start with a feeling — we'll help you find the place.</p>
+          <form id="hero-search" class="hero-search">
+            <span class="search-mark">⌕</span>
+            <label class="sr-only" for="hero-query">Search destinations</label>
+            <input id="hero-query" type="search" placeholder="Try “mountains”, “Astana”, or “a quiet lake”" maxlength="100">
+            <button class="button button-accent" type="submit">Explore places ↗</button>
+          </form>
+          <div class="hero-note"><span>✳</span> Thoughtful discovery, one destination at a time.</div>
+        </div>
+        <div class="hero-aside"><span class="aside-line"></span><small>A DIFFERENT KIND OF GUIDE</small><p>Less scrolling.<br>More <em>going.</em></p><a href="#discover" aria-label="Scroll to destinations">↓</a></div>
+        <div class="hero-bottom"><span class="scroll-label">SCROLL TO EXPLORE</span><div class="hero-metrics"><div><b id="destination-count">64</b><small>places to discover</small></div><div><b>10</b><small>ways to wander</small></div><div><b>01</b><small>next great story</small></div></div></div>
+      </div>
+      <span class="photo-caption">A world of possibilities ↗</span>
+    </section>
+
+    <section class="discovery wrap" id="discover">
+      <div class="section-head">
+        <div><div class="eyebrow"><i></i> YOUR NEXT CHAPTER</div><h2>Where to <em>next?</em></h2><p>Search the map, follow your curiosity, or let a new idea find you.</p></div>
+        <div class="head-note"><span>✳</span> Made for the<br>curious traveler</div>
+      </div>
+      <form class="filter-panel" id="filters">
+        <div class="filter-search"><label for="query">I'M LOOKING FOR</label><div><span>⌕</span><input id="query" type="search" placeholder="A place, a feeling, an experience..." maxlength="100"></div></div>
+        <div><label for="country">COUNTRY</label><select id="country"><option value="">Anywhere</option><option>Kazakhstan</option><option>Kyrgyzstan</option><option>Uzbekistan</option><option>Georgia</option><option>Turkey</option><option>France</option><option>Germany</option><option>United Kingdom</option><option>United States</option><option>China</option><option>India</option><option>South Korea</option></select></div>
+        <div><label for="season">BEST SEASON</label><select id="season"><option value="">Any season</option><option value="spring">Spring</option><option value="summer">Summer</option><option value="autumn">Autumn</option><option value="winter">Winter</option></select></div>
+        <div><label for="price">PRICE LEVEL</label><select id="price"><option value="">Any budget</option><option value="1">Budget friendly</option><option value="2">Moderate</option><option value="3">Upscale</option><option value="4">Luxury</option></select></div>
+        <button class="button button-dark filter-submit" type="submit">Find places ↗</button>
+      </form>
+      <div class="categories" id="categories"><span>EXPLORE BY MOOD</span><button class="chip active" data-category="">All places</button><button class="chip" data-category="nature">Nature</button><button class="chip" data-category="mountains">Mountains</button><button class="chip" data-category="heritage">Culture</button><button class="chip" data-category="adventure">Adventure</button><button class="chip" data-category="beach">By the water</button><button class="chip" data-category="city">City breaks</button><button class="chip" data-category="gastronomy">Food & drink</button></div>
+      <div class="results-bar"><div><small>THE DISCOVERY LIST</small><strong id="result-count">Finding places…</strong></div><div class="results-tools"><button class="clear-button" id="clear" type="button">Clear filters ×</button><label for="sort">SORT BY <select id="sort"><option value="popular">Most popular</option><option value="rating">Top rated</option><option value="price">Lowest cost</option><option value="name">A–Z</option></select></label></div></div>
+      <div class="cards" id="cards" aria-live="polite" aria-busy="true"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      <div class="load-row"><p id="result-summary">A little inspiration goes a long way.</p><button class="button button-outline" id="load-more" type="button" hidden>Load more places ↓</button></div>
+    </section>
+
+    <section class="philosophy" id="philosophy"><div class="wrap philosophy-grid"><div class="philosophy-photo"><img src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=85" alt="Open landscape and a winding trail" loading="lazy"><span>01 / THE OPEN ROAD</span></div><div class="philosophy-copy"><div class="eyebrow light"><i></i> GO BEYOND THE OBVIOUS</div><h2>Good trips begin<br>with <em>curiosity.</em></h2><p>Not every memorable place is famous. Sometimes it's a trail you almost missed, a town you hadn't heard of, or a view that makes you stay a little longer.</p><p>Wayfarer brings destinations and practical details together, so you can spend less time planning what to see and more time seeing it.</p><a href="#discover">Find a place that moves you ↗</a><div class="signature"><b>w.</b><small>THE ART OF<br>GETTING OUT THERE</small></div></div></div></section>
+
+    <section class="how wrap" id="how"><div class="section-head"><div><div class="eyebrow"><i></i> SIMPLE BY DESIGN</div><h2>From maybe to <em>there.</em></h2></div><p>A little inspiration, a few good filters, and a place worth remembering. That's the whole idea.</p></div><div class="steps"><article><small>01</small><b>⌕</b><h3>Find your feeling</h3><p>Search by destination, interest, season, or the kind of escape you have in mind.</p></article><article><small>02</small><b>✳</b><h3>Explore the details</h3><p>Compare places, check the best season to go, and get a sense of the daily budget.</p></article><article><small>03</small><b>♡</b><h3>Save the good ones</h3><p>Keep a shortlist, rate the places you've visited, and make the next trip yours.</p></article></div></section>
+    <section class="closing"><div class="wrap"><div class="eyebrow"><i></i> THE WORLD IS WAITING</div><h2>Make room for<br><em>somewhere new.</em></h2><a class="button button-accent" href="#discover">Explore destinations ↗</a><span class="closing-mark">w.</span></div></section>
+  </main>
+  <footer class="footer"><div class="wrap footer-top"><div><a class="brand brand-footer" href="#top"><span class="brand-symbol">w.</span><span>wayfarer<span class="brand-dot">.</span></span></a><p>Find a place.<br>Find your way.</p></div><div class="footer-links"><div><small>EXPLORE</small><a href="#discover">Destinations</a><a href="#philosophy">Our philosophy</a><a href="#how">How it works</a></div><div><small>PROJECT</small><a href="https://github.com/Matol03/databank" target="_blank" rel="noreferrer">GitHub repository ↗</a><a href="https://github.com/Matol03/databank/blob/main/docs/API.md" target="_blank" rel="noreferrer">API documentation ↗</a></div></div></div><div class="wrap footer-bottom"><span>© <span id="year">2026</span> Wayfarer. Built for curious people.</span><span>GO SOMEWHERE. FEEL SOMETHING.</span></div></footer>
+
+  <dialog id="auth-dialog"><div class="dialog-card"><button class="dialog-close" data-close type="button" aria-label="Close">×</button><small class="dialog-kicker">YOUR NEXT CHAPTER</small><h2 id="auth-title">Welcome <em>back.</em></h2><p id="auth-intro">Sign in to save places and keep your travel ideas together.</p><div class="auth-tabs"><button class="selected" data-mode="login" type="button">Sign in</button><button data-mode="register" type="button">Create account</button></div><form id="login-form"><label>Email address</label><input id="login-email" type="email" autocomplete="email" required><label>Password</label><input id="login-password" type="password" autocomplete="current-password" required><button class="button button-dark full" type="submit">Sign in ↗</button></form><form id="register-form" hidden><label>Your name</label><input id="register-name" type="text" minlength="2" required><label>Email address</label><input id="register-email" type="email" required><label>Create a password</label><input id="register-password" type="password" minlength="8" required placeholder="At least 8 characters, a letter and a number"><button class="button button-dark full" type="submit">Create account ↗</button></form><p class="form-message" id="auth-message" role="status"></p></div></dialog>
+  <dialog id="detail-dialog"><div class="detail-card" id="detail-content"></div></dialog>
+  <dialog id="profile-dialog"><div class="dialog-card" id="profile-content"></div></dialog>
+  <div class="toast-region" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

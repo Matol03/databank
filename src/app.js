@@ -1,6 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import { fileURLToPath } from 'node:url';
 import { config, configProblem } from './config.js';
 import { connect, ensureIndexes, getDb, isConnected } from './db.js';
 import { autoSeed } from './services/seed.js';
@@ -11,6 +12,7 @@ import interactionRoutes from './routes/interactions.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 let connecting = null;
+const publicDirectory = fileURLToPath(new URL('../public/', import.meta.url));
 
 /**
  * Serverless platforms (Vercel) load this module and call the app per request, there is no start-up hook.
@@ -43,11 +45,28 @@ export function createApp() {
   // behind a reverse proxy (Vercel, Render, ...) req.ip must come from X-Forwarded-For,
   // otherwise every visitor shares one rate-limit bucket
   if (process.env.VERCEL || process.env.TRUST_PROXY) app.set('trust proxy', 1);
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        imgSrc: ["'self'", 'data:', 'https:'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+      },
+    },
+  }));
   app.use(cors());
   app.use(express.json({ limit: '100kb' }));
 
-  app.use(ensureReady);
+  // Serve the website before database initialization so the static UI remains available
+  // when MongoDB is temporarily offline or not configured.
+  app.use(express.static(publicDirectory, {
+    index: 'index.html',
+    maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
+  }));
+
+  // Only API requests need MongoDB; static frontend assets do not.
+  app.use('/api', ensureReady);
 
   app.get('/', (_req, res) => {
     res.json({
