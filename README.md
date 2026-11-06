@@ -1,7 +1,7 @@
-# databank — tourism recommendation platform (data layer + backend)
+# Wayfarer — tourism recommendation platform
 
-Backend of a tourism recommender system: a **MongoDB** data model for tourists (users), destinations (items)
-and their interactions, a **REST API** (Node.js + Express) and a seed script with synthetic test data.
+Wayfarer is a tourism discovery website backed by a **MongoDB** data model for tourists (users), destinations (items),
+and their interactions. The project includes a responsive **frontend**, a **REST API** (Node.js + Express), and a seed script with synthetic test data.
 It is the foundation for the recommendation engine of the final project
 (content-based, collaborative and hybrid algorithms for tourism).
 
@@ -13,6 +13,10 @@ It is the foundation for the recommendation engine of the final project
 
 Documentation: [`docs/API.md`](docs/API.md) (API reference) · [`docs/PROPOSAL.docx`](docs/PROPOSAL.docx) (project proposal,
 data-model comparison, indexes, planned algorithm, relevance to the dissertation).
+
+## Website frontend
+
+The Wayfarer frontend is served at `/` from `public/`. It supports destination discovery, filters, nearby search, account registration/sign-in, saved destinations, ratings, and visit history. It uses the existing `/api` endpoints and requires no frontend build step. See [`docs/FRONTEND.md`](docs/FRONTEND.md) for details.
 
 ## Requirements
 
@@ -36,7 +40,7 @@ docker compose up -d            # Docker
 npm run seed
 
 # 3) start the API
-npm start                       # http://localhost:3000/api/health
+npm start                       # website: http://localhost:3000/ · API health: http://localhost:3000/api/health
 ```
 
 Test accounts created by the seed:
