@@ -7,6 +7,7 @@ const unique = (arr) => [...new Set(arr)];
 const profileShape = {
   fullName: z.string().trim().min(2).max(100),
   age: z.number().int().min(13).max(120),
+  city: z.string().trim().min(2).max(80),
   country: z.string().trim().min(2).max(60),
   travelStyle: z.enum(TRAVEL_STYLES),
   budgetLevel: z.number().int().min(1).max(4),
@@ -24,7 +25,7 @@ export const registerSchema = z.object({
   password: z.string().min(8).max(72)
     .regex(/[A-Za-z]/, 'Password must contain a letter')
     .regex(/\d/, 'Password must contain a digit'),
-  profile: z.object(profileShape).partial().required({ fullName: true }).strict(),
+  profile: z.object(profileShape).partial().required({ fullName: true, age: true, city: true }).strict(),
 }).strict();
 
 export const loginSchema = z.object({

@@ -40,7 +40,10 @@ async function applyEffects(db, { itemId, userId, category }, e, pushActivity) {
 
 export async function recordInteraction(db, userId, input) {
   const itemId = toObjectId(input.itemId, 'itemId');
-  const item = await db.collection('items').findOne({ _id: itemId }, { projection: { category: 1 } });
+  const item = await db.collection('items').findOne(
+    { _id: itemId },
+    { projection: { name: 1, category: 1, city: 1, country: 1 } },
+  );
   if (!item) throw new AppError(404, 'Item not found', 'NotFound');
 
   const col = db.collection('interactions');
@@ -64,7 +67,18 @@ export async function recordInteraction(db, userId, input) {
       ? { views: 0, ratingCount: 0, ratingSum: rating - before.rating, popularity: 0, signal: rating - before.rating }
       : { views: 0, ratingCount: 1, ratingSum: rating, popularity: POPULARITY.rating, signal: tasteSignal('rating', rating) };
   } else {
-    doc = { userId, itemId, type, weight: weightOf(type), createdAt: now, ...(context && { context }) };
+    doc = {
+      userId, itemId, type, weight: weightOf(type), createdAt: now,
+      ...(context && { context }),
+      ...(type === 'bookmark' && {
+        destinationSnapshot: {
+          name: item.name,
+          city: item.city,
+          country: item.country,
+          category: item.category,
+        },
+      }),
+    };
     const { insertedId } = await col.insertOne(doc);
     doc._id = insertedId;
     effects = {

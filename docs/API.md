@@ -40,11 +40,12 @@ Lists of allowed values:
 | `email` | string | valid e-mail, stored lower-case, unique |
 | `password` | string | 8–72 characters, at least one letter and one digit |
 | `profile.fullName` | string | **required**, 2–100 chars |
-| `profile.age` | integer | 13–120 |
+| `profile.age` | integer | **required**, 13–120 |
+| `profile.city` | string | **required**, 2–80 chars; the user's home city |
+| `profile.interests` | array of categories | max 10; saved as the user's declared travel interests |
 | `profile.country` | string | |
 | `profile.travelStyle` | enum | see above |
 | `profile.budgetLevel` | integer | 1–4 |
-| `profile.interests` | array of categories | max 10 |
 | `profile.preferredSeasons` | array of seasons | |
 | `profile.bio` | string | ≤ 500 |
 
@@ -53,7 +54,7 @@ Unknown fields (for example `role`) are rejected, so nobody can register as admi
 ```bash
 curl -X POST localhost:3000/api/auth/register -H 'Content-Type: application/json' -d '{
   "email": "aigul@example.com", "password": "Travel2026",
-  "profile": { "fullName": "Aigul Sadykova", "age": 27, "country": "Kazakhstan",
+  "profile": { "fullName": "Aigul Sadykova", "age": 27, "city": "Astana", "country": "Kazakhstan",
                "travelStyle": "solo", "budgetLevel": 2, "interests": ["mountains", "heritage"] } }'
 ```
 
@@ -86,7 +87,7 @@ curl -X PUT localhost:3000/api/users/me -H "Authorization: Bearer $TOKEN" \
 ```
 
 ### `GET /users/me/history`
-The user's interactions, newest first, each joined with basic item data.
+The user's interactions, newest first, each joined with basic item data. Bookmark documents also store a `destinationSnapshot` (`name`, `city`, `country`, `category`) at the moment the user saves the place. This makes liked destinations and their cities directly queryable in the `interactions` collection, even if catalogue details later change.
 
 | Query | Description |
 |---|---|
@@ -94,9 +95,10 @@ The user's interactions, newest first, each joined with basic item data.
 | `page`, `limit` | pagination |
 
 ```json
-{ "data": [ { "_id": "...", "type": "rating", "rating": 5, "weight": 5, "createdAt": "...",
-              "itemId": "...", "item": { "name": "Charyn Canyon", "category": "nature",
-                                         "city": "Charyn", "country": "Kazakhstan" } } ],
+{ "data": [ { "_id": "...", "type": "bookmark", "weight": 3, "createdAt": "...",
+              "itemId": "...", "destinationSnapshot": { "name": "Charyn Canyon", "category": "nature",
+                                         "city": "Charyn", "country": "Kazakhstan" },
+              "item": { "name": "Charyn Canyon", "category": "nature", "city": "Charyn", "country": "Kazakhstan" } } ],
   "page": 1, "limit": 10, "total": 4, "totalPages": 1 }
 ```
 
@@ -207,6 +209,31 @@ Behaviour:
 curl -X POST localhost:3000/api/interactions -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{ "itemId": "6aea…", "type": "rating", "rating": 5 }'
 ```
+
+### Querying saved account data in MongoDB Compass
+
+Registered profile fields are stored in each document in the `users` collection under `profile`. User-selected interests can be inspected with:
+
+```javascript
+db.users.find({}, {
+  email: 1,
+  "profile.fullName": 1,
+  "profile.age": 1,
+  "profile.city": 1,
+  "profile.interests": 1
+})
+```
+
+Likes are stored as `type: "bookmark"` documents in `interactions`. Each new bookmark includes the user ID, destination ID, and a snapshot of the liked destination's city and interest category:
+
+```javascript
+db.interactions.find(
+  { type: "bookmark" },
+  { userId: 1, itemId: 1, destinationSnapshot: 1, createdAt: 1 }
+)
+```
+
+To inspect one user's saved cities, filter by their `userId` (an ObjectId) and read `destinationSnapshot.city`. Older bookmarks created before this change may not have a snapshot; their city remains available through the related `items` document and the history API's joined `item.city` field.
 
 ### `DELETE /interactions/:id`  — owner or admin
 
