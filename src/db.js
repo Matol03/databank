@@ -74,6 +74,7 @@ export async function ensureIndexes(database = getDb()) {
 
   // a user's history, newest first (the most frequent read)
   await interactions.createIndex({ userId: 1, createdAt: -1 }, { name: 'user_history' });
+  await interactions.createIndex({ userId: 1, type: 1, createdAt: -1 }, { name: 'user_history_by_type' });
   // all interactions of an item (item-based collaborative filtering)
   await interactions.createIndex({ itemId: 1, createdAt: -1 }, { name: 'item_interactions' });
   // one rating per user and item (ratings are upserted, other events are appended)
