@@ -74,8 +74,10 @@ The token is valid for `JWT_EXPIRES_IN` (default 2 h).
 All endpoints need a token.
 
 ### `GET /users/me`
-Returns the current user: `profile`, `role`, `tasteProfile` (signed score per category, maintained
-automatically) and `recentActivity` (the last 20 events).
+Returns the current user including `profile`, `role`, `tasteProfile`, `recentActivity` (the last 20 events)
+and `favoritePlaces` (an array embedded directly in the user document). Each favorite contains
+`itemId`, `interactionId`, `name`, `city`, `country`, `category` and `likedAt`. Existing accounts
+are backfilled from their bookmark history the first time this endpoint is read.
 
 ### `PUT /users/me`
 Partial update of the profile. Body: any subset of the profile fields listed above.
@@ -196,14 +198,18 @@ curl -G localhost:3000/api/items/search -d 'lat=51.13' -d 'lon=71.43' -d 'radius
 
 Behaviour:
 
-* `view`, `bookmark`, `visit`, `booking` are **appended** to the event log.
+* `view`, `visit` and `booking` are **appended** to the event log.
+* `bookmark` is an idempotent like: one user/place bookmark is kept, and the destination snapshot is also
+  added to that user's `favoritePlaces` array in `users`. Repeated like requests do not create duplicates.
 * `rating` is an **upsert**: a user has exactly one rating per item. Sending a new rating replaces the old value
   (average rating is corrected, the number of ratings does not change).
 * Each interaction gets an implicit-feedback `weight` (view 1, bookmark 3, visit 4, booking 5, rating = the rating).
-* Side effects (single atomic update per document): the item's `stats` counters, the user's `tasteProfile`
-  and `recentActivity` (last 20 events).
+* Side effects include the item's `stats` counters, the user's `tasteProfile` and `recentActivity`
+  (last 20 events). Removing a bookmark also removes the corresponding entry from `users.favoritePlaces`.
 
 **201** → the stored interaction `{ _id, userId, itemId, type, weight, rating?, context?, createdAt }`.
+For a bookmark, the corresponding user document also receives a `favoritePlaces` entry with the destination
+snapshot and the bookmark's `interactionId`.
 
 ```bash
 curl -X POST localhost:3000/api/interactions -H "Authorization: Bearer $TOKEN" \
@@ -224,16 +230,25 @@ db.users.find({}, {
 })
 ```
 
-Likes are stored as `type: "bookmark"` documents in `interactions`. Each new bookmark includes the user ID, destination ID, and a snapshot of the liked destination's city and interest category:
+Favorites are embedded directly in each user's `favoritePlaces` array, so you can inspect the places attached to a specific account without joining collections:
 
 ```javascript
-db.interactions.find(
-  { type: "bookmark" },
-  { userId: 1, itemId: 1, destinationSnapshot: 1, createdAt: 1 }
+db.users.find(
+  { email: "traveller@example.com" },
+  { email: 1, favoritePlaces: 1 }
 )
 ```
 
-To inspect one user's saved cities, filter by their `userId` (an ObjectId) and read `destinationSnapshot.city`. Older bookmarks created before this change may not have a snapshot; their city remains available through the related `items` document and the history API's joined `item.city` field.
+Each array entry contains an item reference, the bookmark interaction ID, a readable destination snapshot and the like timestamp. The interaction is also retained in `interactions` for recommendation analytics and activity history. To inspect every user's favorite places:
+
+```javascript
+db.users.find(
+  { "favoritePlaces.0": { $exists: true } },
+  { email: 1, favoritePlaces: 1 }
+)
+```
+
+Existing records can be populated from old bookmark interactions by running `npm run backfill-favorites` with the production `MONGO_URI` and `DB_NAME` configured.
 
 ### `DELETE /interactions/:id`  — owner or admin
 
