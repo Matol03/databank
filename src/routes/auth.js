@@ -28,6 +28,7 @@ router.post('/register', async (req, res) => {
     profile: { interests: [], preferredSeasons: [], ...profile },
     tasteProfile: {},
     recentActivity: [],
+    favoritePlaces: [],
     createdAt: new Date(),
   };
   const { insertedId } = await getDb().collection('users').insertOne(user); // unique index -> 409 on duplicate
