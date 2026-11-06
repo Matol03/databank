@@ -46,7 +46,6 @@ Lists of allowed values:
 | `profile.country` | string | |
 | `profile.travelStyle` | enum | see above |
 | `profile.budgetLevel` | integer | 1–4 |
-| `profile.interests` | array of categories | max 10 |
 | `profile.preferredSeasons` | array of seasons | |
 | `profile.bio` | string | ≤ 500 |
 
@@ -96,10 +95,10 @@ The user's interactions, newest first, each joined with basic item data. Bookmar
 | `page`, `limit` | pagination |
 
 ```json
-{ "data": [ { "_id": "...", "type": "rating", "rating": 5, "weight": 5, "createdAt": "...",
+{ "data": [ { "_id": "...", "type": "bookmark", "weight": 3, "createdAt": "...",
               "itemId": "...", "destinationSnapshot": { "name": "Charyn Canyon", "category": "nature",
                                          "city": "Charyn", "country": "Kazakhstan" },
-  "item": { "name": "Charyn Canyon", "category": "nature", "city": "Charyn", "country": "Kazakhstan" } } ],
+              "item": { "name": "Charyn Canyon", "category": "nature", "city": "Charyn", "country": "Kazakhstan" } } ],
   "page": 1, "limit": 10, "total": 4, "totalPages": 1 }
 ```
 
