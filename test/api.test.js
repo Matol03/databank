@@ -214,8 +214,14 @@ describe('interactions and history', () => {
     const ratings = await call('GET', '/api/users/me/history?type=rating', { token: userToken });
     assert.equal(ratings.body.total, 1);
     assert.equal(ratings.body.data[0].rating, 3);
+    const saved = await call('POST', '/api/interactions', { token: userToken, body: { itemId, type: 'bookmark' } });
+    assert.equal(saved.status, 201);
+    assert.deepEqual(saved.body.destinationSnapshot, {
+      name: 'Interaction Lake', city: 'Almaty', country: 'Kazakhstan', category: 'nature',
+    });
     const bookmarks = await call('GET', '/api/users/me/history?type=bookmark', { token: userToken });
-    assert.ok(bookmarks.body.data.every(x => x.destinationSnapshot && x.destinationSnapshot.city === 'Almaty'));
+    assert.equal(bookmarks.body.total, 1);
+    assert.deepEqual(bookmarks.body.data[0].destinationSnapshot, saved.body.destinationSnapshot);
   });
 
   test('interaction with an unknown item is a 404', async () => {
