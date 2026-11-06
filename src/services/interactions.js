@@ -183,6 +183,46 @@ export async function removeInteraction(db, user, id) {
   }
 }
 
+/**
+ * Backfill the embedded user.favoritePlaces array from historical bookmark
+ * interactions. The latest bookmark per destination is retained.
+ */
+export async function rebuildFavoritePlaces(db, onlyUserId = null) {
+  const users = db.collection('users');
+  const interactions = db.collection('interactions');
+  const items = db.collection('items');
+  const targets = await users.find(
+    onlyUserId ? { _id: onlyUserId } : {},
+    { projection: { _id: 1 } },
+  ).toArray();
+
+  for (const user of targets) {
+    const bookmarks = await interactions.find({ userId: user._id, type: 'bookmark' })
+      .sort({ createdAt: 1 }).toArray();
+    const itemIds = [...new Map(bookmarks.map((x) => [String(x.itemId), x.itemId])).values()];
+    const itemDocs = itemIds.length
+      ? await items.find({ _id: { $in: itemIds } }, { projection: { name: 1, city: 1, country: 1, category: 1 } }).toArray()
+      : [];
+    const itemById = new Map(itemDocs.map((x) => [String(x._id), x]));
+    const favoriteByItem = new Map();
+
+    for (const bookmark of bookmarks) {
+      const item = itemById.get(String(bookmark.itemId));
+      const favorite = toFavoritePlace(bookmark, item);
+      if (favorite.name !== 'Unknown destination') {
+        favoriteByItem.set(String(bookmark.itemId), favorite);
+      }
+    }
+
+    await users.updateOne(
+      { _id: user._id },
+      { $set: { favoritePlaces: [...favoriteByItem.values()] } },
+    );
+  }
+
+  return { users: targets.length };
+}
+
 export async function userHistory(db, userId, { type, page, limit }) {
   const match = { userId, ...(type && { type }) };
   const col = db.collection('interactions');
