@@ -111,7 +111,7 @@ $('#register-form').addEventListener('submit',async e=>{
   busy(f,true,'Creating account…');
   authMessage('');
   try{
-    const interests=$('input[name="register-interest"]:checked').map(input=>input.value);
+    const interests=Array.from(document.querySelectorAll('input[name="register-interest"]:checked'),input=>input.value);
     const r=await api('/auth/register',{
       method:'POST',
       body:{
