@@ -60,6 +60,7 @@ describe('authentication and profiles', () => {
     assert.ok(r.body.token);
     assert.equal(r.body.user.email, 'ann@test.com');
     assert.equal(r.body.user.passwordHash, undefined);
+    assert.deepEqual(r.body.user.favoritePlaces, []);
     assert.deepEqual(r.body.user.profile.interests, ['beach']); // de-duplicated
     assert.equal(r.body.user.profile.fullName, 'Ann Lee');
     assert.equal(r.body.user.profile.age, 24);
@@ -196,9 +197,15 @@ describe('interactions and history', () => {
   test('bookmarks can be removed and counters are reverted; views cannot', async () => {
     const bm = await call('POST', '/api/interactions', { token: userToken, body: { itemId, type: 'bookmark' } });
     assert.deepEqual(bm.body.destinationSnapshot, { name: 'Interaction Lake', city: 'Almaty', country: 'Kazakhstan', category: 'nature' });
+    let me = await call('GET', '/api/users/me', { token: userToken });
+    assert.equal(me.body.favoritePlaces.length, 1);
+    assert.equal(me.body.favoritePlaces[0].name, 'Interaction Lake');
+    assert.equal(me.body.favoritePlaces[0].interactionId, bm.body._id);
     const before = (await stats()).popularity;
     assert.equal((await call('DELETE', `/api/interactions/${bm.body._id}`, { token: adminToken })).status, 204); // admin may delete
     assert.equal((await stats()).popularity, before - 3);
+    me = await call('GET', '/api/users/me', { token: userToken });
+    assert.equal(me.body.favoritePlaces.length, 0);
     const view = await call('POST', '/api/interactions', { token: userToken, body: { itemId, type: 'view' } });
     assert.equal((await call('DELETE', `/api/interactions/${view.body._id}`, { token: userToken })).status, 400);
     const other = await call('POST', '/api/interactions', { token: adminToken, body: { itemId, type: 'bookmark' } });
@@ -222,6 +229,13 @@ describe('interactions and history', () => {
     const bookmarks = await call('GET', '/api/users/me/history?type=bookmark', { token: userToken });
     assert.equal(bookmarks.body.total, 1);
     assert.deepEqual(bookmarks.body.data[0].destinationSnapshot, saved.body.destinationSnapshot);
+    const duplicate = await call('POST', '/api/interactions', { token: userToken, body: { itemId, type: 'bookmark' } });
+    assert.equal(duplicate.body._id, saved.body._id); // repeated like is idempotent
+    const me = await call('GET', '/api/users/me', { token: userToken });
+    assert.equal(me.body.favoritePlaces.length, 1);
+    assert.equal(me.body.favoritePlaces[0].itemId, saved.body.itemId);
+    assert.equal(me.body.favoritePlaces[0].interactionId, saved.body._id);
+    assert.equal(me.body.favoritePlaces[0].name, 'Interaction Lake');
   });
 
   test('interaction with an unknown item is a 404', async () => {
