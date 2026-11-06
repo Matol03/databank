@@ -54,24 +54,33 @@ after(async () => {
 describe('authentication and profiles', () => {
   test('registers a user and never returns the password hash', async () => {
     const r = await call('POST', '/api/auth/register', {
-      body: { email: 'Ann@Test.com', password: 'Secret123', profile: { fullName: 'Ann Lee', interests: ['beach', 'beach'] } },
+      body: { email: 'Ann@Test.com', password: 'Secret123', profile: { fullName: 'Ann Lee', age: 24, city: 'Astana', interests: ['beach', 'beach'] } },
     });
     assert.equal(r.status, 201);
     assert.ok(r.body.token);
     assert.equal(r.body.user.email, 'ann@test.com');
     assert.equal(r.body.user.passwordHash, undefined);
     assert.deepEqual(r.body.user.profile.interests, ['beach']); // de-duplicated
+    assert.equal(r.body.user.profile.fullName, 'Ann Lee');
+    assert.equal(r.body.user.profile.age, 24);
+    assert.equal(r.body.user.profile.city, 'Astana');
+    const savedUser = await db.collection('users').findOne({ email: 'ann@test.com' });
+    assert.equal(savedUser.profile.age, 24);
+    assert.equal(savedUser.profile.city, 'Astana');
+    assert.deepEqual(savedUser.profile.interests, ['beach']);
     assert.equal(r.body.user.role, 'user');
     userToken = r.body.token;
   });
 
   test('rejects duplicate e-mail (409), weak password (400) and unknown fields (400)', async () => {
-    const dup = await call('POST', '/api/auth/register', { body: { email: 'ann@test.com', password: 'Secret123', profile: { fullName: 'Ann' } } });
+    const dup = await call('POST', '/api/auth/register', { body: { email: 'ann@test.com', password: 'Secret123', profile: { fullName: 'Ann', age: 24, city: 'Astana' } } });
     assert.equal(dup.status, 409);
-    const weak = await call('POST', '/api/auth/register', { body: { email: 'b@test.com', password: 'short', profile: { fullName: 'Bob' } } });
+    const missingDetails = await call('POST', '/api/auth/register', { body: { email: 'missing@test.com', password: 'Secret123', profile: { fullName: 'No Age Or City' } } });
+    assert.equal(missingDetails.status, 400);
+    const weak = await call('POST', '/api/auth/register', { body: { email: 'b@test.com', password: 'short', profile: { fullName: 'Bob', age: 20, city: 'Astana' } } });
     assert.equal(weak.status, 400);
     assert.ok(weak.body.details.some((d) => d.path === 'password'));
-    const extra = await call('POST', '/api/auth/register', { body: { email: 'c@test.com', password: 'Secret123', role: 'admin', profile: { fullName: 'Cy' } } });
+    const extra = await call('POST', '/api/auth/register', { body: { email: 'c@test.com', password: 'Secret123', role: 'admin', profile: { fullName: 'Cy', age: 20, city: 'Astana' } } });
     assert.equal(extra.status, 400); // mass-assignment of "role" is impossible
   });
 
@@ -89,9 +98,11 @@ describe('authentication and profiles', () => {
   test('profile endpoints require a token and update only the given fields', async () => {
     assert.equal((await call('GET', '/api/users/me')).status, 401);
     assert.equal((await call('GET', '/api/users/me', { token: 'garbage' })).status, 401);
-    const upd = await call('PUT', '/api/users/me', { token: userToken, body: { age: 31, budgetLevel: 3, travelStyle: 'couple' } });
+    const upd = await call('PUT', '/api/users/me', { token: userToken, body: { age: 31, city: 'Almaty', interests: ['mountains', 'nature'], budgetLevel: 3, travelStyle: 'couple' } });
     assert.equal(upd.status, 200);
     assert.equal(upd.body.profile.age, 31);
+    assert.equal(upd.body.profile.city, 'Almaty');
+    assert.deepEqual(upd.body.profile.interests, ['mountains', 'nature']);
     assert.equal(upd.body.profile.fullName, 'Ann Lee'); // untouched
     const invalid = await call('PUT', '/api/users/me', { token: userToken, body: { budgetLevel: 9 } });
     assert.equal(invalid.status, 400);
@@ -184,6 +195,7 @@ describe('interactions and history', () => {
 
   test('bookmarks can be removed and counters are reverted; views cannot', async () => {
     const bm = await call('POST', '/api/interactions', { token: userToken, body: { itemId, type: 'bookmark' } });
+    assert.deepEqual(bm.body.destinationSnapshot, { name: 'Interaction Lake', city: 'Almaty', country: 'Kazakhstan', category: 'nature' });
     const before = (await stats()).popularity;
     assert.equal((await call('DELETE', `/api/interactions/${bm.body._id}`, { token: adminToken })).status, 204); // admin may delete
     assert.equal((await stats()).popularity, before - 3);
@@ -202,6 +214,8 @@ describe('interactions and history', () => {
     const ratings = await call('GET', '/api/users/me/history?type=rating', { token: userToken });
     assert.equal(ratings.body.total, 1);
     assert.equal(ratings.body.data[0].rating, 3);
+    const bookmarks = await call('GET', '/api/users/me/history?type=bookmark', { token: userToken });
+    assert.ok(bookmarks.body.data.every(x => x.destinationSnapshot && x.destinationSnapshot.city === 'Almaty'));
   });
 
   test('interaction with an unknown item is a 404', async () => {
