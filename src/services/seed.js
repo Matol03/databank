@@ -143,3 +143,58 @@ export async function seedDatabase(db, { users: USERS = 300, seed = 42, drop = t
 
   return { items: itemDocs.length, users: userDocs.length, interactions: interactions.length };
 }
+
+const LOCK_MS = 120_000;
+
+/**
+ * Decides whether this instance must seed, and takes a lock so that only ONE serverless instance does it.
+ * A marker document {_id: 'seed'} in the `meta` collection records the state: running | failed | done.
+ *   - done                     -> never seed again
+ *   - no marker, mode 'true'   -> seed only if all collections are empty
+ *   - no marker, mode 'reset'  -> seed even if data exists (recovery of a half-filled database; DESTRUCTIVE)
+ *   - running/failed marker    -> a previous attempt did not finish: take over once its lock has expired
+ */
+async function acquireSeedLock(db, mode) {
+  const meta = db.collection('meta');
+  const now = new Date();
+  const lockedUntil = new Date(now.getTime() + LOCK_MS);
+  const existing = await meta.findOne({ _id: 'seed' });
+
+  if (existing?.status === 'done') return false;
+  if (!existing) {
+    if (mode !== 'reset') {
+      const counts = await Promise.all(['items', 'users', 'interactions'].map((c) => db.collection(c).estimatedDocumentCount()));
+      if (counts.some((n) => n > 0)) return false; // someone else's data: leave it alone
+    }
+    try {
+      await meta.insertOne({ _id: 'seed', status: 'running', startedAt: now, lockedUntil });
+      return true;
+    } catch (err) {
+      if (err.code === 11000) return false; // another instance won the race
+      throw err;
+    }
+  }
+  if (existing.lockedUntil > now) return false; // another instance is seeding right now
+  // compare-and-set: of several instances taking over, exactly one gets modifiedCount 1
+  const r = await meta.updateOne(
+    { _id: 'seed', lockedUntil: existing.lockedUntil },
+    { $set: { status: 'running', startedAt: now, lockedUntil } },
+  );
+  return r.modifiedCount === 1;
+}
+
+export async function autoSeed(db, { mode = process.env.AUTO_SEED, users = Number(process.env.AUTO_SEED_USERS || 100), log = console.log } = {}) {
+  if (mode !== 'true' && mode !== 'reset') return null;
+  const meta = db.collection('meta');
+  try {
+    if (!(await acquireSeedLock(db, mode))) return null;
+    const r = await seedDatabase(db, { users, drop: true });
+    await meta.updateOne({ _id: 'seed' }, { $set: { status: 'done', finishedAt: new Date(), result: r }, $unset: { lockedUntil: '' } });
+    log(`AUTO_SEED: loaded ${r.items} items, ${r.users} users, ${r.interactions} interactions`);
+    return r;
+  } catch (err) {
+    log('AUTO_SEED failed:', err.message);
+    await meta.updateOne({ _id: 'seed' }, { $set: { status: 'failed', error: String(err.message).slice(0, 300), lockedUntil: new Date(0) } }).catch(() => {});
+    return null;
+  }
+}
