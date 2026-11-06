@@ -15,7 +15,8 @@
     "explain": "node scripts/explain.js",
     "inspect-db": "node scripts/inspect-db.js",
     "test": "node --test --test-reporter=spec --test-concurrency=1 test/api.test.js",
-    "indexes": "node scripts/create-indexes.js"
+    "indexes": "node scripts/create-indexes.js",
+    "backfill-favorites": "node scripts/backfill-favorites.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

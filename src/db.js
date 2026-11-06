@@ -77,9 +77,13 @@ export async function ensureIndexes(database = getDb()) {
   await interactions.createIndex({ userId: 1, type: 1, createdAt: -1 }, { name: 'user_history_by_type' });
   // all interactions of an item (item-based collaborative filtering)
   await interactions.createIndex({ itemId: 1, createdAt: -1 }, { name: 'item_interactions' });
-  // one rating per user and item (ratings are upserted, other events are appended)
+  // one rating and one bookmark per user and item
   await interactions.createIndex(
     { userId: 1, itemId: 1 },
     { unique: true, partialFilterExpression: { type: 'rating' }, name: 'uniq_user_item_rating' },
+  );
+  await interactions.createIndex(
+    { userId: 1, itemId: 1 },
+    { unique: true, partialFilterExpression: { type: 'bookmark' }, name: 'uniq_user_item_bookmark' },
   );
 }

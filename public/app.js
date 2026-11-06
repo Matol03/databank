@@ -28,7 +28,7 @@ function setAuthMode(mode){const register=mode==='register';$('#login-form').hid
 function displayName(){return state.user&&state.user.profile&&state.user.profile.fullName||state.user&&state.user.email&&state.user.email.split('@')[0]||'Traveler';}
 function syncAccount(){const signed=!!(state.token&&state.user);$('#auth-open').hidden=signed;$('#account').hidden=!signed;if(signed){$('#account-name').textContent=displayName().split(' ')[0];$('#avatar').textContent=(displayName()[0]||'W').toUpperCase();}}
 function clearSession(){state.token='';state.user=null;state.bookmarks.clear();sessionStorage.removeItem('wayfarer_token');syncAccount();renderCards();toast('You have signed out.');}
-async function refreshBookmarks(){if(!state.token){state.bookmarks.clear();return;}try{const r=await api('/users/me/history?type=bookmark&limit=50');state.bookmarks=new Map((r.data||[]).map(x=>[String(x.itemId),String(x._id)]));}catch(e){if(e.message.toLowerCase().includes('token'))clearSession();}}
+async function refreshBookmarks(){if(!state.token){state.bookmarks.clear();return;}try{let favorites=state.user&&Array.isArray(state.user.favoritePlaces)?state.user.favoritePlaces:null;if(!favorites){state.user=await api('/users/me');favorites=state.user.favoritePlaces||[];}state.bookmarks=new Map(favorites.filter(x=>x.itemId&&x.interactionId).map(x=>[String(x.itemId),String(x.interactionId)]));}catch(e){if(e.message.toLowerCase().includes('token'))clearSession();}}
 async function finishLogin(result){state.token=result.token;state.user=result.user;sessionStorage.setItem('wayfarer_token',result.token);await refreshBookmarks();syncAccount();renderCards();closeDialog('#auth-dialog');toast('Welcome, '+displayName().split(' ')[0]+'. Happy exploring.');}
 function renderCards(){const grid=$('#cards');grid.setAttribute('aria-busy','false');if(!state.items.length){grid.innerHTML='<div class="empty"><b>⌖</b><h3>No places found just yet.</h3><p>Try a broader search or clear a filter to discover more places.</p><button class="button button-outline" data-action="clear" type="button">Clear filters</button></div>';}else{grid.innerHTML=state.items.map((item,i)=>{const id=String(item._id||'');const saved=state.bookmarks.has(id);const rating=Number(item.stats&&item.stats.avgRating||0);const count=Number(item.stats&&item.stats.ratingCount||0);return '<article class="destination-card"><div class="card-photo"><img src="'+esc(imageFor(item))+'" alt="'+esc(item.name)+'" loading="lazy"><span class="card-tag">'+esc(LABELS[item.category]||'Destination')+'</span><button class="save-button '+(saved?'saved':'')+'" data-action="save" data-id="'+esc(id)+'" type="button" aria-label="Save destination" aria-pressed="'+saved+'">'+(saved?'♥':'♡')+'</button><span class="card-number">NO. '+String(i+1).padStart(2,'0')+'</span></div><div class="card-body"><div class="card-location">'+esc(item.city)+' · '+esc(item.country)+'</div><div class="card-title-row"><h3 class="card-title">'+esc(item.name)+'</h3>'+(count?'<span class="card-rating"><b>★</b> '+rating.toFixed(1)+'</span>':'')+'</div><p class="card-description">'+esc(item.description||'A place waiting to be discovered.')+'</p><div class="card-foot"><span class="card-cost">'+esc(money(item))+'</span><button class="card-open" data-action="detail" data-id="'+esc(id)+'" type="button">Explore place ↗</button></div></div></article>';}).join('');grid.querySelectorAll('img').forEach(img=>img.addEventListener('error',()=>{img.classList.add('image-fallback');img.removeAttribute('src');},{once:true}));}
 $('#result-count').textContent=state.total+' '+(state.total===1?'place':'places')+' found';$('#result-summary').textContent=state.total?'Showing '+state.items.length+' of '+state.total+' destinations. Follow the places that call to you.':'Try changing your filters — there is always somewhere new to find.';$('#load-more').hidden=!state.items.length||state.page>=state.pages;}
@@ -45,13 +45,13 @@ function renderDetail(){const item=state.current;if(!item)return;const id=String
 async function openProfile(){
   if(!state.user){showAuth('login');return;}
   try{
-    const pair=await Promise.all([
-      api('/users/me'),
-      api('/users/me/history?type=bookmark&limit=50')
-    ]);
-    state.user=pair[0];
-    const r=pair[1];
-    const entries=r.data||[];
+    state.user=await api('/users/me');
+    const entries=(state.user.favoritePlaces||[]).map(x=>({
+      itemId:x.itemId,
+      destinationSnapshot:x,
+      item:x,
+      createdAt:x.likedAt
+    }));
     const profile=state.user.profile||{};
     const fullName=profile.fullName||displayName();
     const interests=(profile.interests||[]).map(x=>LABELS[x]||x);
@@ -75,7 +75,7 @@ async function openProfile(){
       '<h2 id="profile-title">'+esc(fullName)+'</h2>'+
       '<p>'+esc(state.user.email||'')+'</p>'+
       '<div class="profile-meta"><span><b>Age</b> '+(profile.age?esc(profile.age):'Not provided')+'</span><span><b>Home city</b> '+esc(profile.city||'Not provided')+'</span></div>'+
-      '<div class="profile-stats"><div><b>'+Number(r.total||entries.length)+'</b><small>SAVED PLACES</small></div><div><b>'+savedCities.length+'</b><small>CITIES LIKED</small></div></div>'+
+      '<div class="profile-stats"><div><b>'+entries.length+'</b><small>SAVED PLACES</small></div><div><b>'+savedCities.length+'</b><small>CITIES LIKED</small></div></div>'+
       '<div class="profile-list"><h3>Your interests</h3><div class="profile-tags">'+interestTags+'</div></div>'+
       '<div class="profile-list"><h3>Cities in your saved places</h3><div class="profile-tags">'+cityTags+'</div></div>'+
       '<div class="profile-list"><h3>Your shortlist</h3>'+list+'</div>'+

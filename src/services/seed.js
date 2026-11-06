@@ -10,6 +10,7 @@ import { createItemSchema } from '../schemas.js';
 import { buildItemDoc } from './items.js';
 import { recomputeAll } from './stats.js';
 import { weightOf } from '../constants.js';
+import { rebuildFavoritePlaces } from './interactions.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
@@ -61,7 +62,7 @@ export async function seedDatabase(db, { users: USERS = 300, seed = 42, drop = t
   const makeUser = (email, role, hash, profile, extra = {}) => ({
     email, role, passwordHash: hash,
     profile: { interests: [], preferredSeasons: [], ...profile },
-    tasteProfile: {}, recentActivity: [],
+    tasteProfile: {}, recentActivity: [], favoritePlaces: [],
     createdAt: new Date(now - randint(30, 400) * DAY), ...extra,
   });
 
@@ -137,6 +138,7 @@ export async function seedDatabase(db, { users: USERS = 300, seed = 42, drop = t
   }
   await db.collection('interactions').insertMany(interactions, { ordered: false });
   log(`  interactions: ${interactions.length}`);
+  await rebuildFavoritePlaces(db);
 
   const r = await recomputeAll(db);
   log(`  counters:     recomputed for ${r.items} items / ${r.users} users`);
