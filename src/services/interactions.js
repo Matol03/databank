@@ -105,8 +105,17 @@ export async function recordInteraction(db, userId, input) {
         category: item.category,
       },
     };
-    const { insertedId } = await col.insertOne(doc);
-    doc._id = insertedId;
+    try {
+      const { insertedId } = await col.insertOne(doc);
+      doc._id = insertedId;
+    } catch (err) {
+      // The partial unique index handles two near-simultaneous like requests.
+      if (err.code !== 11000) throw err;
+      const existing = await col.findOne({ userId, itemId, type: 'bookmark' });
+      if (!existing) throw err;
+      await storeFavoritePlace(db, userId, toFavoritePlace(existing, item));
+      return existing;
+    }
     await storeFavoritePlace(db, userId, toFavoritePlace(doc, item));
     effects = {
       views: 0, ratingCount: 0, ratingSum: 0,
