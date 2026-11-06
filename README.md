@@ -11,7 +11,7 @@ It is the foundation for the recommendation engine of the final project
 * Search: full-text (weighted), prefix, filters (category, country, price, season, rating, tags) and geospatial "near me".
 * 19 automated API tests, query plans checked with `explain()`.
 
-Documentation: [`docs/API.md`](docs/API.md) (API reference) · [`docs/PROPOSAL.docx`](docs/PROPOSAL.docx) (project proposal,
+Documentation: [`docs/API.md`](docs/API.md) (API reference) · [`docs/DATASET.md`](docs/DATASET.md) (MongoDB collections, data fields, and inspection queries) · [`docs/PROPOSAL.docx`](docs/PROPOSAL.docx) (project proposal,
 data-model comparison, indexes, planned algorithm, relevance to the dissertation).
 
 ## Website frontend

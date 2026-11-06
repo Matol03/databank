@@ -1,5 +1,7 @@
 # API documentation
 
+For the MongoDB collection structure, field meanings, and practical Atlas/Compass inspection queries, see [DATASET.md](DATASET.md).
+
 Base URL: `http://localhost:3000/api` · Format: JSON · Authentication: `Authorization: Bearer <JWT>`
 
 All errors have the same shape:
