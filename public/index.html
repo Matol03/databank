@@ -73,7 +73,35 @@
   </main>
   <footer class="footer"><div class="wrap footer-top"><div><a class="brand brand-footer" href="#top"><span class="brand-symbol">w.</span><span>wayfarer<span class="brand-dot">.</span></span></a><p>Find a place.<br>Find your way.</p></div><div class="footer-links"><div><small>EXPLORE</small><a href="#discover">Destinations</a><a href="#philosophy">Our philosophy</a><a href="#how">How it works</a></div><div><small>PROJECT</small><a href="https://github.com/Matol03/databank" target="_blank" rel="noreferrer">GitHub repository ↗</a><a href="https://github.com/Matol03/databank/blob/main/docs/API.md" target="_blank" rel="noreferrer">API documentation ↗</a></div></div></div><div class="wrap footer-bottom"><span>© <span id="year">2026</span> Wayfarer. Built for curious people.</span><span>GO SOMEWHERE. FEEL SOMETHING.</span></div></footer>
 
-  <dialog id="auth-dialog"><div class="dialog-card"><button class="dialog-close" data-close type="button" aria-label="Close">×</button><small class="dialog-kicker">YOUR NEXT CHAPTER</small><h2 id="auth-title">Welcome <em>back.</em></h2><p id="auth-intro">Sign in to save places and keep your travel ideas together.</p><div class="auth-tabs"><button class="selected" data-mode="login" type="button">Sign in</button><button data-mode="register" type="button">Create account</button></div><form id="login-form"><label>Email address</label><input id="login-email" type="email" autocomplete="email" required><label>Password</label><input id="login-password" type="password" autocomplete="current-password" required><button class="button button-dark full" type="submit">Sign in ↗</button></form><form id="register-form" hidden><label>Your name</label><input id="register-name" type="text" minlength="2" required><label>Email address</label><input id="register-email" type="email" required><label>Create a password</label><input id="register-password" type="password" minlength="8" required placeholder="At least 8 characters, a letter and a number"><button class="button button-dark full" type="submit">Create account ↗</button></form><p class="form-message" id="auth-message" role="status"></p></div></dialog>
+  <dialog id="auth-dialog"><div class="dialog-card"><button class="dialog-close" data-close type="button" aria-label="Close">×</button><small class="dialog-kicker">YOUR NEXT CHAPTER</small><h2 id="auth-title">Welcome <em>back.</em></h2><p id="auth-intro">Sign in to save places and keep your travel ideas together.</p><div class="auth-tabs"><button class="selected" data-mode="login" type="button">Sign in</button><button data-mode="register" type="button">Create account</button></div><form id="login-form"><label>Email address</label><input id="login-email" type="email" autocomplete="email" required><label>Password</label><input id="login-password" type="password" autocomplete="current-password" required><button class="button button-dark full" type="submit">Sign in ↗</button></form><form id="register-form" hidden>
+          <label for="register-name">Full name</label>
+          <input id="register-name" type="text" autocomplete="name" minlength="2" maxlength="100" required>
+          <div class="registration-grid">
+            <div><label for="register-age">Age</label><input id="register-age" type="number" min="13" max="120" step="1" required></div>
+            <div><label for="register-city">City where you live</label><input id="register-city" type="text" autocomplete="address-level2" minlength="2" maxlength="80" required></div>
+          </div>
+          <fieldset class="interest-fieldset">
+            <legend>What are you interested in?</legend>
+            <div class="interest-options">
+              <label><input type="checkbox" name="register-interest" value="nature"> Nature</label>
+              <label><input type="checkbox" name="register-interest" value="mountains"> Mountains</label>
+              <label><input type="checkbox" name="register-interest" value="beach"> Beaches & water</label>
+              <label><input type="checkbox" name="register-interest" value="heritage"> Culture & heritage</label>
+              <label><input type="checkbox" name="register-interest" value="museum"> Museums</label>
+              <label><input type="checkbox" name="register-interest" value="city"> City breaks</label>
+              <label><input type="checkbox" name="register-interest" value="adventure"> Adventure</label>
+              <label><input type="checkbox" name="register-interest" value="gastronomy"> Food & drink</label>
+              <label><input type="checkbox" name="register-interest" value="wellness"> Wellness</label>
+              <label><input type="checkbox" name="register-interest" value="religious"> Sacred places</label>
+            </div>
+            <small>Choose up to 10 interests. You can leave this blank and update your preferences later.</small>
+          </fieldset>
+          <label for="register-email">Email address</label>
+          <input id="register-email" type="email" autocomplete="email" required>
+          <label for="register-password">Create a password</label>
+          <input id="register-password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required placeholder="At least 8 characters, a letter and a number">
+          <button class="button button-dark full" type="submit">Create account ↗</button>
+        </form><p class="form-message" id="auth-message" role="status"></p></div></dialog>
   <dialog id="detail-dialog"><div class="detail-card" id="detail-content"></div></dialog>
   <dialog id="profile-dialog"><div class="dialog-card" id="profile-content"></div></dialog>
   <div class="toast-region" id="toast" role="status" aria-live="polite"></div>
