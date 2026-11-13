@@ -1,22 +1,25 @@
 # Wayfarer — tourism recommendation platform
 
 Wayfarer is a tourism discovery website backed by a **MongoDB** data model for tourists (users), destinations (items),
-and their interactions. The project includes a responsive **frontend**, a **REST API** (Node.js + Express), and a seed script with synthetic test data.
-It is the foundation for the recommendation engine of the final project
-(content-based, collaborative and hybrid algorithms for tourism).
+and their interactions. The project includes a responsive **frontend**, a **REST API** (Node.js + Express), a
+**collaborative-filtering recommendation engine**, performance tests, and a seed script with synthetic test data.
 
-* Users register, log in (JWT), keep a travel profile.
+* **Personalised recommendations** (final project): item-based collaborative filtering with a pre-computed
+  item–item similarity model, user-based collaborative filtering on request, cold-start fallback, two-level cache,
+  "travellers who liked this also liked", offline evaluation (Precision/Recall/NDCG) and a benchmark from 300 to
+  10 000 users. See [`docs/RECOMMENDATIONS.md`](docs/RECOMMENDATIONS.md) and [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+* Users register with **e-mail verification** (6-digit code or link, SMTP or demo delivery), log in (JWT), keep a travel profile.
 * Item catalogue of 64 real destinations (Kazakhstan, Central Asia, Europe, Asia, …) with full CRUD for admins.
 * Interactions: views, bookmarks, visits, bookings and 1–5 ratings, stored as an event log.
 * Search: full-text (weighted), prefix, filters (category, country, price, season, rating, tags) and geospatial "near me".
-* 19 automated API tests, query plans checked with `explain()`.
+* 27 automated API tests, query plans checked with `explain()`.
 
-Documentation: [`docs/API.md`](docs/API.md) (API reference) · [`docs/DATASET.md`](docs/DATASET.md) (MongoDB collections, data fields, and inspection queries) · [`docs/PROPOSAL.docx`](docs/PROPOSAL.docx) (project proposal,
+Documentation: [`docs/API.md`](docs/API.md) (API reference) · [`docs/RECOMMENDATIONS.md`](docs/RECOMMENDATIONS.md) (algorithms) · [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) (performance tests and optimisation) · [`docs/DATASET.md`](docs/DATASET.md) (MongoDB collections, data fields, and inspection queries) · [`docs/PROPOSAL.docx`](docs/PROPOSAL.docx) (project proposal,
 data-model comparison, indexes, planned algorithm, relevance to the dissertation).
 
 ## Website frontend
 
-The Wayfarer frontend is served at `/` from `public/`. It supports destination discovery, filters, nearby search, account registration/sign-in, saved destinations, ratings, and visit history. It uses the existing `/api` endpoints and requires no frontend build step. See [`docs/FRONTEND.md`](docs/FRONTEND.md) for details.
+The Wayfarer frontend is served at `/` from `public/`. It supports destination discovery, filters, nearby search, account registration with e-mail verification and sign-in, a personalised "Recommended for you" list (item- or user-based CF, with the reason for each place), "travellers who liked this also liked" in the detail view, saved destinations, ratings, and visit history. It uses the existing `/api` endpoints and requires no frontend build step. See [`docs/FRONTEND.md`](docs/FRONTEND.md) for details.
 
 ## Requirements
 
@@ -60,7 +63,27 @@ curl -G localhost:3000/api/items/search --data-urlencode 'q=lake mountains'
 TOKEN=$(curl -s -X POST localhost:3000/api/auth/login -H 'Content-Type: application/json' \
         -d '{"email":"demo@tourism.local","password":"Demo12345!"}' | jq -r .token)
 curl localhost:3000/api/users/me/history?limit=3 -H "Authorization: Bearer $TOKEN"
+curl 'localhost:3000/api/recommendations?limit=5' -H "Authorization: Bearer $TOKEN"
+curl 'localhost:3000/api/recommendations?limit=5&algorithm=user' -H "Authorization: Bearer $TOKEN"
 ```
+
+### E-mail verification
+
+New accounts must confirm their e-mail address before they can sign in. To send real e-mails, set an SMTP server in
+`.env` (any provider; with Gmail use an *app password*):
+
+```bash
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=you@gmail.com
+SMTP_PASS=your-app-password
+MAIL_FROM="Wayfarer <you@gmail.com>"
+APP_URL=http://localhost:3000        # used in the verification link
+```
+
+Without `SMTP_HOST` the server uses **demo delivery**: the code is printed in the server log and shown in the sign-up
+dialog, so the project can be demonstrated without a mail server. Set `EMAIL_DEMO_MODE=false` to forbid that.
+The seeded accounts are already verified.
 
 ## Deploying to Vercel (serverless)
 
@@ -88,6 +111,8 @@ Vercel detects the Express app automatically (`src/app.js` exports it as the def
    | `DB_NAME` | `tourism_recsys` |
    | `JWT_SECRET` | a long random string |
    | `AUTO_SEED` | `true` (optional, see step 2) |
+   | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | optional: real verification e-mails (otherwise demo delivery) |
+   | `APP_URL` | optional: public URL for the verification link (defaults to the Vercel production URL) |
 
 4. Open `https://<your-project>.vercel.app/api/health`. A configuration error (missing variable, wrong password,
    Atlas network access) is shown as readable JSON (HTTP 503) instead of a bare 500; the Vercel *Logs* tab has details.
@@ -111,6 +136,16 @@ Notes: the rate limiter and the database connection live per function instance.
 | `AUTH_RATE_LIMIT` | `50` | max login/register requests per IP per 15 min |
 | `MONGO_POOL_SIZE` | `10` | MongoDB connection pool size |
 | `AUTO_SEED` | unset | `true`: fill a completely empty database with demo data on the first request (`AUTO_SEED_USERS`, default 100); `reset`: also repair a half-filled demo database (destructive) |
+| `APP_URL` | `http://localhost:PORT` (Vercel: production URL) | public website URL used in the verification e-mail link |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` | unset / `587` | SMTP server for verification e-mails |
+| `MAIL_FROM` | `Wayfarer <no-reply@wayfarer.local>` | sender address |
+| `EMAIL_DEMO_MODE` | `true` if no `SMTP_HOST` | return the code in the API response / show it in the UI (demo only) |
+| `EMAIL_CODE_TTL_MINUTES` | `15` | lifetime of a verification code |
+| `CF_MODEL_TTL_MINUTES` | `60` | age after which the item–item model is rebuilt in the background |
+| `CF_NEIGHBOURS` | `30` | neighbours stored per place |
+| `CF_USER_CANDIDATES` | `300` | max. candidate travellers in user-based CF |
+| `REC_CACHE` | on | `off` disables the recommendation cache |
+| `REC_CACHE_TTL_SECONDS` | `600` | lifetime of a cached recommendation list |
 
 ## npm scripts
 
@@ -118,7 +153,10 @@ Notes: the rate limiter and the database connection live per function instance.
 |---|---|
 | `npm start` / `npm run dev` | run the API (`dev` restarts on file changes) |
 | `npm run seed` | rebuild the database with test data. `node scripts/seed.js --users=3000` creates a bigger set (≈180 000 interactions) for performance tests |
-| `npm test` | 19 API tests (use a separate database `tourism_recsys_test`, which is dropped afterwards) |
+| `npm test` | 27 API tests (use a separate database `tourism_recsys_test`, which is dropped afterwards) |
+| `npm run build-model` | (re)build the item–item collaborative-filtering model |
+| `npm run evaluate` | offline accuracy test (hold-out): Precision/Recall/HitRate/NDCG@10 of item-CF, user-CF and baselines |
+| `npm run benchmark` | performance test on growing data sets (`--sizes=300,1000,3000,10000`), writes `docs/perf/benchmark.json` |
 | `npm run explain` | prints the query plan of the main queries (IXSCAN vs COLLSCAN) |
 | `npm run inspect-db` | collection sizes, indexes and sample documents |
 | `npm run indexes` | creates the indexes without changing the data |
@@ -127,9 +165,12 @@ Notes: the rate limiter and the database connection live per function instance.
 ## Data model in one picture
 
 ```
-users          { email*, passwordHash, role, profile{…}, tasteProfile{category: score}, recentActivity[≤20] }
-items          { name, description, category, country, city, location(GeoJSON), tags[], priceLevel, … , stats{…} }
-interactions   { userId, itemId, type, rating?, weight, context{}, createdAt }      (* unique)
+users                { email*, passwordHash, role, emailVerified, emailVerification?{codeHash, tokenHash, expiresAt},
+                       profile{…}, tasteProfile{category: score}, recentActivity[≤20], favoritePlaces[] }
+items                { name, description, category, country, city, location(GeoJSON), tags[], priceLevel, … , stats{…} }
+interactions         { userId, itemId, type, rating?, weight, context{}, createdAt }      (* unique)
+item_similarities    { _id: itemId, neighbours[≤30]{ itemId, score, common }, version }   (pre-computed CF model)
+recommendation_cache { _id: user+params, userId, modelVersion, result, expiresAt }         (TTL cache)
 ```
 
 * `interactions` is a separate collection (unbounded growth) – one document per event.
@@ -137,7 +178,8 @@ interactions   { userId, itemId, type, rating?, weight, context{}, createdAt }  
   up to date atomically on every interaction – the recommender never has to scan the whole event log for them.
 * Indexes (see `src/db.js`): unique e-mail; `category + avgRating`; `country + city`; `popularity`; `tags`; `bestSeasons`;
   `city` prefix; unique `name + city`; `2dsphere` location; weighted text index; `user + createdAt`;
-  `item + createdAt`; partial unique `user + item` for ratings.
+  `item + createdAt`; partial unique `user + item` for ratings and bookmarks; covering indexes
+  `user + item + type + weight` and `item + user + type + weight` for the recommender; TTL index on the cache.
   Details and trade-offs are in the proposal.
 
 ## Project structure
@@ -147,12 +189,14 @@ src/
   server.js, app.js, config.js, db.js     start-up (npm start), Express app (default export), settings, connection + indexes
   schemas.js, constants.js, errors.js     validation (zod), enums and weights, error helpers
   middleware/                             JWT authentication / roles, error handler
-  routes/                                 auth, users, items, interactions
-  services/                               items (search), interactions (counters, history), stats (recompute)
-scripts/                                  seed, create-indexes, explain, inspect-db, recompute-stats
+  routes/                                 auth (+ e-mail verification), users, items, interactions, recommendations
+  services/                               items (search), interactions (counters, history), stats (recompute),
+                                          cf (CF algorithms), recommendations (model, cache, API logic), mailer
+scripts/                                  seed, create-indexes, explain, inspect-db, recompute-stats,
+                                          build-model, evaluate, benchmark
 data/destinations.json                    the item catalogue (64 destinations; coordinates ≈ 1 km accuracy)
 test/api.test.js                          API tests (node:test)
-docs/                                     API reference, project proposal
+docs/                                     API reference, recommender design, performance report (+ perf/*.json, charts), proposal
 ```
 
 ## Notes and limitations
@@ -162,5 +206,6 @@ docs/                                     API reference, project proposal
 * A standalone MongoDB has no multi-document transactions. The counters are updated by atomic single-document
   operations and can be rebuilt with `npm run recompute` if an update is ever interrupted.
 * Prefix search matches the beginning of the name or city only; use the full-text search for words inside a name.
-* The recommendation algorithms (hybrid content-based + collaborative filtering) are planned for the final project;
-  this backend provides the data, indexes and counters they need.
+* The recommendation quality is measured on synthetic data; it demonstrates that the algorithms work, not how real
+  tourists behave. The benchmark numbers depend on the machine (see `docs/perf/benchmark.json` for the environment).
+* Without an SMTP server the verification code is shown in the UI (demo delivery); configure SMTP for real use.

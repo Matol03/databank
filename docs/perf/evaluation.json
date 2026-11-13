@@ -1,0 +1,46 @@
+{
+  "database": "tourism_recsys",
+  "k": 10,
+  "testUsers": 288,
+  "hiddenPairs": 545,
+  "trainingEvents": 15954,
+  "modelBuildMs": 48,
+  "results": [
+    {
+      "algorithm": "Item-based CF",
+      "precision@10": 0.1024,
+      "recall@10": 0.5119,
+      "hitRate@10": 0.6736,
+      "ndcg@10": 0.3381,
+      "coverage": 0.813,
+      "msPerUser": 0.153
+    },
+    {
+      "algorithm": "User-based CF",
+      "precision@10": 0.1253,
+      "recall@10": 0.6308,
+      "hitRate@10": 0.7847,
+      "ndcg@10": 0.4761,
+      "coverage": 0.984,
+      "msPerUser": 0.899
+    },
+    {
+      "algorithm": "Most popular",
+      "precision@10": 0.0729,
+      "recall@10": 0.3634,
+      "hitRate@10": 0.5521,
+      "ndcg@10": 0.2058,
+      "coverage": 0.5,
+      "msPerUser": 0.005
+    },
+    {
+      "algorithm": "Random",
+      "precision@10": 0.0403,
+      "recall@10": 0.197,
+      "hitRate@10": 0.3403,
+      "ndcg@10": 0.1105,
+      "coverage": 1,
+      "msPerUser": 0.012
+    }
+  ]
+}

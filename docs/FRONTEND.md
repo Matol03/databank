@@ -21,7 +21,10 @@ Open http://localhost:3000/. The REST API remains available under `/api`; see [A
 - Sorting by popularity, rating, estimated daily cost, or name.
 - Nearby search using browser geolocation (requires permission and HTTPS or localhost).
 - Destination detail views with tags, recommended stay, season, estimated daily cost, and a map link when coordinates exist.
-- Registration and sign-in using the existing JWT API.
+- Registration with **e-mail verification**: after sign-up the dialog asks for the 6-digit code from the e-mail (or the link in the e-mail signs the user in). In demo delivery (no SMTP server) the code is shown in the dialog. Signing in with an unconfirmed address opens the same step, with a *Send a new code* button.
+- Sign-in using the JWT API.
+- **Recommended for you**: a personalised list from `GET /api/recommendations` with the reason for each place ("Because you liked …" or "Loved by N travellers with tastes like yours"), a switch between item-based and user-based collaborative filtering, and the strategy / cache status / response time of the request. The list refreshes after every save, rating or visit.
+- **Travellers who liked this also liked** in the destination detail view (`GET /api/items/:id/similar`).
 - Saved places, ratings, and visit tracking using the interactions API.
 - Responsive layout, accessible controls, and loading/error states.
 

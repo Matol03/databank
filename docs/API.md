@@ -15,10 +15,10 @@ All errors have the same shape:
 |---|---|
 | 400 | validation error, malformed JSON, invalid id |
 | 401 | missing, invalid or expired token; wrong e-mail/password |
-| 403 | authenticated, but not allowed (e.g. a normal user calls an admin endpoint) |
+| 403 | authenticated, but not allowed (e.g. a normal user calls an admin endpoint); `EmailNotVerified` on login before the e-mail is confirmed |
 | 404 | item / interaction / route not found |
 | 409 | unique constraint violated (e-mail already registered, item already exists) |
-| 429 | too many login/registration attempts |
+| 429 | too many login/registration attempts; too many wrong verification codes; a new code requested within 1 minute |
 
 Pagination parameters (`page` ≥ 1, `limit` 1–50, default 10) return
 `{ data: [...], page, limit, total, totalPages }`.
@@ -60,13 +60,39 @@ curl -X POST localhost:3000/api/auth/register -H 'Content-Type: application/json
                "travelStyle": "solo", "budgetLevel": 2, "interests": ["mountains", "heritage"] } }'
 ```
 
-**201** → `{ "token": "<jwt>", "user": { "_id": "...", "email": "...", "role": "user", "profile": {...}, "tasteProfile": {}, "recentActivity": [], "createdAt": "..." } }`
-(the password hash is never returned) · **400** · **409** e-mail exists.
+**201** → the account is created **unverified** and no token is issued yet:
+
+```json
+{ "verificationRequired": true, "email": "aigul@example.com", "delivery": "email",
+  "expiresAt": "…", "user": { "_id": "...", "email": "...", "role": "user", "emailVerified": false, "profile": {...} } }
+```
+
+A 6-digit code and a one-time link (`<APP_URL>/?verify=<token>`) are e-mailed to the address. They expire after
+`EMAIL_CODE_TTL_MINUTES` (default 15). Only SHA-256/HMAC hashes of the code and of the link token are stored, and
+neither the hashes nor the password hash are ever returned.
+
+`delivery` is `"email"` when an SMTP server is configured (`SMTP_HOST`, …). Without SMTP the server runs in
+**demo delivery**: the message is written to the server log and the response also contains `"demoCode": "123456"`, so the
+public demo can be used without a mail server (`EMAIL_DEMO_MODE=false` disables this; registration then fails with **503**
+until SMTP is configured). · **400** · **409** e-mail exists · **502** the e-mail could not be sent (the account is removed again).
+
+### `POST /auth/verify-email`  — public
+
+Body: `{ "email": "...", "code": "123456" }` **or** `{ "token": "<64 hex chars from the link>" }`
+→ **200** `{ token, user }` — the e-mail is confirmed and the user is signed in.
+**400** wrong / expired / already used code · **429** after 5 wrong codes (request a new one).
+
+### `POST /auth/resend-verification`  — public
+
+Body: `{ "email": "..." }` → **200** with the same message whether the account exists or not (no account enumeration);
+a new code replaces the old one. **429** if the previous code was sent less than a minute ago.
 
 ### `POST /auth/login`  — public
 
 Body: `{ "email": "...", "password": "..." }` → **200** `{ token, user }` · **401** `Invalid e-mail or password`
-(the same message for an unknown e-mail and a wrong password).
+(the same message for an unknown e-mail and a wrong password) · **403** `EmailNotVerified` (correct password, but the
+e-mail has not been confirmed yet). Accounts created before e-mail verification was introduced have no `emailVerified`
+flag and can still sign in.
 The token is valid for `JWT_EXPIRES_IN` (default 2 h).
 
 ---
@@ -259,6 +285,67 @@ The counters are reverted. **204** · **403** for someone else's interaction · 
 
 ---
 
-## 6. Health
+## 6. Recommendations (collaborative filtering)
+
+How it works (details: [RECOMMENDATIONS.md](RECOMMENDATIONS.md)):
+
+* **item-based CF** (default) — the item–item cosine similarities are pre-computed into `item_similarities`
+  (top 30 neighbours per place). A request reads the user's preferences and the neighbour lists of the places the
+  user liked: `score(j) = Σ sim(i, j) · preference(u, i)`.
+* **user-based CF** — the most similar travellers are found on request among the users who share places with the user.
+* **cold start** — a user with no positive history gets the most popular places in their declared interests;
+  short CF lists are topped up the same way (`source: "popular"`).
+* Places the user already interacted with are never recommended.
+* Results are cached (in memory and in `recommendation_cache`, TTL `REC_CACHE_TTL_SECONDS`, default 600 s); the cache of a
+  user is cleared whenever they record or remove an interaction.
+
+### `GET /recommendations`  — authenticated
+
+| Query | Default | Description |
+|---|---|---|
+| `limit` | 10 | 1–30 |
+| `algorithm` | `item` | `item` or `user` |
+| `category` | – | comma-separated categories to restrict the list |
+| `cache` | `true` | `false` forces a fresh computation (used for performance tests) |
+
+```json
+{
+  "data": [
+    { "item": { "_id": "…", "name": "Big Almaty Lake", "category": "nature", "city": "Almaty", … },
+      "score": 1, "source": "item-cf",
+      "because": [ { "_id": "…", "name": "Charyn Canyon" } ] }
+  ],
+  "algorithm": "item", "strategy": "collaborative",
+  "model": { "version": 1763000000000, "builtAt": "…" },
+  "cache": "miss", "tookMs": 6.4
+}
+```
+
+`score` is normalised (1 = best candidate). `strategy`: `collaborative`, `collaborative+popular` or `cold-start`.
+`cache`: `miss`, `memory`, `database` or `off`. User-based entries carry `similarTravellers` (how many of the
+nearest travellers liked the place) instead of `because`. **401** without a token · **400** invalid parameters.
+
+### `GET /items/:id/similar`  — public
+
+"Travellers who liked this also liked": `?limit=` 1–20 (default 6) →
+`{ data: [ { item, similarity, commonUsers, source: "item-cf" | "same-category" } ] }`. **404** unknown item.
+
+### `GET /recommendations/model`  — public
+
+Metadata of the current model: `version`, `builtAt`, `interactions`, `users`, `preferencePairs`,
+`itemsWithNeighbours`, `neighboursPerItem`, `timings { loadMs, computeMs, totalMs }`. The model is built on the first
+request if it does not exist, and rebuilt in the background when older than `CF_MODEL_TTL_MINUTES` (default 60).
+
+### `POST /recommendations/model/rebuild`  — admin
+
+Rebuilds the item–item model now and returns the same metadata. Also: `npm run build-model`.
+
+### `GET /recommendations/users/:id`  — admin
+
+The recommendations of any user (same query parameters as `GET /recommendations`).
+
+---
+
+## 7. Health
 
 `GET /health` → `{ "status": "ok", "database": "up", "time": "…" }`
