@@ -25,7 +25,9 @@ function closeDialog(id){const d=$(id);if(d&&d.open)d.close();}
 function showAuth(mode){setAuthMode(mode||'login');showDialog('#auth-dialog');}
 function authMessage(message,success){$('#auth-message').textContent=message||'';$('#auth-message').classList.toggle('success',!!success);}
 function setAuthMode(mode){const register=mode==='register',verify=mode==='verify';$('#login-form').hidden=register||verify;$('#register-form').hidden=!register;$('#verify-form').hidden=!verify;$('.auth-tabs').hidden=verify;$('#auth-title').innerHTML=verify?'Check your <em>inbox.</em>':register?'Join the <em>journey.</em>':'Welcome <em>back.</em>';$('#auth-intro').textContent=verify?'One last step: confirm that this e-mail address belongs to you.':register?'Create an account to save your favorite places and build a travel shortlist.':'Sign in to save places and keep your travel ideas together.';$$('[data-mode]').forEach(b=>{b.classList.toggle('selected',b.dataset.mode===mode);});authMessage('');}
-function showVerify(email,info){state.pendingEmail=email;setAuthMode('verify');$('#verify-email-label').textContent=email;$('#verify-code').value='';const demo=$('#demo-code');if(info&&info.demoCode){demo.hidden=false;demo.innerHTML='<small>DEMO MODE · NO MAIL SERVER CONFIGURED</small>Your code is <b>'+esc(info.demoCode)+'</b>';}else{demo.hidden=true;demo.textContent='';}showDialog('#auth-dialog');setTimeout(()=>$('#verify-code').focus(),50);}
+function showVerify(email,info){state.pendingEmail=email;setAuthMode('verify');$('#verify-email-label').textContent=email;$('#verify-code').value='';const demo=$('#demo-code');if(info&&info.demoCode){demo.hidden=false;demo.innerHTML='<small>DEMO MODE · NO MAIL SERVER CONFIGURED</small>Your code is <b>'+esc(info.demoCode)+'</b>';}else{demo.hidden=true;demo.textContent='';}showDialog('#auth-dialog');setTimeout(()=>$('#verify-code').focus(),50);if(info)startResendCooldown(60);}
+let resendTimer=null;
+function startResendCooldown(seconds){const b=$('#verify-resend');clearInterval(resendTimer);let left=seconds;const tick=()=>{if(left<=0){clearInterval(resendTimer);b.disabled=false;b.textContent='Send a new code';return;}b.disabled=true;b.textContent='New code in '+left+' s';left--;};tick();resendTimer=setInterval(tick,1000);}
 function displayName(){return state.user&&state.user.profile&&state.user.profile.fullName||state.user&&state.user.email&&state.user.email.split('@')[0]||'Traveler';}
 function syncAccount(){const signed=!!(state.token&&state.user);$('#auth-open').hidden=signed;$('#account').hidden=!signed;if(signed){$('#account-name').textContent=displayName().split(' ')[0];$('#avatar').textContent=(displayName()[0]||'W').toUpperCase();}}
 function clearSession(){state.token='';state.user=null;state.bookmarks.clear();sessionStorage.removeItem('wayfarer_token');syncAccount();renderCards();renderRecommendations(null);toast('You have signed out.');}
@@ -128,7 +130,7 @@ $('#register-form').addEventListener('submit',async e=>{
     });
     f.reset();
     showVerify(r.email,r);
-    authMessage(r.delivery==='email'?'Account created. We sent the code to your inbox.':'Account created. Enter the code below to activate it.',true);
+    authMessage(r.delivery==='email'?'Account created. We sent the code to '+r.email+' — check the spam folder if it does not arrive within a minute.':'Account created. Enter the code below to activate it.',true);
   }catch(err){authMessage(err.message);}
   finally{busy(f,false);}
 });
@@ -146,6 +148,6 @@ async function loadSimilar(id){try{const r=await api('/items/'+encodeURIComponen
 $('#rec-cards').addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;if(a==='detail')openDetail(b.dataset.id);if(a==='save')savePlace(b.dataset.id);if(a==='signin')showAuth('login');});
 $('#rec-tools').addEventListener('click',e=>{const b=e.target.closest('[data-algorithm]');if(!b||b.dataset.algorithm===state.recAlgorithm)return;state.recAlgorithm=b.dataset.algorithm;loadRecommendations();});
 $('#verify-form').addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget;busy(f,true,'Verifying…');authMessage('');try{const r=await api('/auth/verify-email',{method:'POST',body:{email:state.pendingEmail,code:$('#verify-code').value.trim()}});await finishLogin(r);toast('Your e-mail is confirmed. Welcome to Wayfarer!');}catch(err){authMessage(err.message);}finally{busy(f,false);}});
-$('#verify-resend').addEventListener('click',async()=>{if(!state.pendingEmail){setAuthMode('login');return;}try{const r=await api('/auth/resend-verification',{method:'POST',body:{email:state.pendingEmail}});showVerify(state.pendingEmail,r);authMessage('A new code is on its way.',true);}catch(err){authMessage(err.message);}});
+$('#verify-resend').addEventListener('click',async()=>{if(!state.pendingEmail){setAuthMode('login');return;}try{const r=await api('/auth/resend-verification',{method:'POST',body:{email:state.pendingEmail}});showVerify(state.pendingEmail,r);authMessage('A new code is on its way. Check your inbox and the spam folder.',true);}catch(err){authMessage(err.message);if(err.status===429)startResendCooldown(60);}});
 $('#verify-back').addEventListener('click',()=>{state.pendingEmail='';setAuthMode('register');});
 $('#year').textContent=String(new Date().getFullYear());setAuthMode('login');syncAccount();load(1,false);bootstrap();

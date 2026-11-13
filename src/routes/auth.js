@@ -7,7 +7,7 @@ import { config } from '../config.js';
 import { AppError } from '../errors.js';
 import { registerSchema, loginSchema, verifyEmailSchema, resendSchema } from '../schemas.js';
 import { signToken } from '../middleware/auth.js';
-import { sendVerificationEmail } from '../services/mailer.js';
+import { sendVerificationEmail, emailProvider } from '../services/mailer.js';
 
 const router = Router();
 
@@ -41,8 +41,8 @@ async function issueVerification(user) {
       },
     },
   });
-  if (!config.smtp && !config.emailDemoMode) {
-    throw new AppError(503, 'E-mail delivery is not configured on the server (SMTP_HOST)', 'EmailUnavailable');
+  if (emailProvider() === 'demo' && !config.emailDemoMode) {
+    throw new AppError(503, 'E-mail delivery is not configured on the server (SMTP_HOST or RESEND_API_KEY)', 'EmailUnavailable');
   }
   const delivery = await sendVerificationEmail({
     to: user.email,
@@ -126,7 +126,14 @@ router.post('/resend-verification', async (req, res) => {
   if (last && Date.now() - last.getTime() < config.verificationResendMs) {
     throw new AppError(429, 'Please wait a minute before requesting another code', 'TooManyRequests');
   }
-  const issued = await issueVerification(user);
+  let issued;
+  try {
+    issued = await issueVerification(user);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    console.error('Verification e-mail failed:', err.message);
+    throw new AppError(502, 'The verification e-mail could not be sent, try again later', 'EmailFailed');
+  }
   res.json({ ...generic, ...(issued.demoCode && { delivery: issued.delivery, demoCode: issued.demoCode }) });
 });
 

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { config, configProblem } from './config.js';
 import { connect, ensureIndexes, getDb, isConnected } from './db.js';
 import { autoSeed } from './services/seed.js';
+import { emailProvider } from './services/mailer.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import itemRoutes from './routes/items.js';
@@ -87,7 +88,8 @@ export function createApp() {
     const marker = await db.collection('meta').findOne({ _id: 'seed' }, { projection: { status: 1, error: 1 } });
     const body = {
       status: 'ok', database: 'up', name: db.databaseName,
-      counts: { items, users, interactions }, ...(marker && { seed: marker.status, ...(marker.error && { seedError: marker.error }) }),
+      counts: { items, users, interactions },
+      email: emailProvider(), // smtp | resend | demo (which provider sends verification e-mails) ...(marker && { seed: marker.status, ...(marker.error && { seedError: marker.error }) }),
       time: new Date().toISOString(),
     };
     if (items === 0) {

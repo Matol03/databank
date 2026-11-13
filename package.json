@@ -14,12 +14,13 @@
     "recompute": "node scripts/recompute-stats.js",
     "explain": "node scripts/explain.js",
     "inspect-db": "node scripts/inspect-db.js",
-    "test": "node --test --test-reporter=spec --test-concurrency=1 test/api.test.js",
+    "test": "node --test --test-reporter=spec --test-concurrency=1 test/api.test.js test/email.test.js",
     "indexes": "node scripts/create-indexes.js",
     "backfill-favorites": "node scripts/backfill-favorites.js",
     "build-model": "node scripts/build-model.js",
     "evaluate": "node scripts/evaluate.js",
-    "benchmark": "node scripts/benchmark.js"
+    "benchmark": "node scripts/benchmark.js",
+    "email:test": "node scripts/email-test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -33,5 +34,8 @@
     "nodemailer": "^6.10.1",
     "zod": "^4.6.7"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "smtp-server": "^3.21.4"
+  }
 }

@@ -12,7 +12,7 @@ and their interactions. The project includes a responsive **frontend**, a **REST
 * Item catalogue of 64 real destinations (Kazakhstan, Central Asia, Europe, Asia, …) with full CRUD for admins.
 * Interactions: views, bookmarks, visits, bookings and 1–5 ratings, stored as an event log.
 * Search: full-text (weighted), prefix, filters (category, country, price, season, rating, tags) and geospatial "near me".
-* 27 automated API tests, query plans checked with `explain()`.
+* 34 automated tests (incl. end-to-end e-mail delivery through a local SMTP server), query plans checked with `explain()`.
 
 Documentation: [`docs/API.md`](docs/API.md) (API reference) · [`docs/RECOMMENDATIONS.md`](docs/RECOMMENDATIONS.md) (algorithms) · [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) (performance tests and optimisation) · [`docs/DATASET.md`](docs/DATASET.md) (MongoDB collections, data fields, and inspection queries) · [`docs/PROPOSAL.docx`](docs/PROPOSAL.docx) (project proposal,
 data-model comparison, indexes, planned algorithm, relevance to the dissertation).
@@ -69,21 +69,32 @@ curl 'localhost:3000/api/recommendations?limit=5&algorithm=user' -H "Authorizati
 
 ### E-mail verification
 
-New accounts must confirm their e-mail address before they can sign in. To send real e-mails, set an SMTP server in
-`.env` (any provider; with Gmail use an *app password*):
+New accounts must confirm their e-mail address (6-digit code or one-time link, valid 15 min, max. 5 wrong tries,
+one new code per minute) before they can sign in. The server picks the first configured provider:
+
+| Provider | Variables | Notes |
+|---|---|---|
+| **SMTP** (recommended) | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, optional `MAIL_FROM` | Gmail: `smtp.gmail.com`, port `465`, your Gmail address and a 16-character **App Password** (Google Account → Security → 2-Step Verification → App passwords). Sends to any address; the sender is your Gmail address. Brevo, Mailgun, Outlook etc. work the same way. |
+| **Resend** (HTTP API) | `RESEND_API_KEY`, optional `MAIL_FROM` | No SMTP ports needed. Without a verified domain Resend only delivers to your own account address (sender `onboarding@resend.dev`); verify a domain to send to anyone. |
+| demo (none set) | – | The code is returned by the API and shown in the sign-up dialog; `EMAIL_DEMO_MODE=false` forbids this. |
 
 ```bash
+# .env — Gmail example
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
 SMTP_USER=you@gmail.com
-SMTP_PASS=your-app-password
-MAIL_FROM="Wayfarer <you@gmail.com>"
-APP_URL=http://localhost:3000        # used in the verification link
+SMTP_PASS=abcdefghijklmnop
+APP_URL=http://localhost:3000        # base of the verification link (Vercel: the production URL is used automatically)
 ```
 
-Without `SMTP_HOST` the server uses **demo delivery**: the code is printed in the server log and shown in the sign-up
-dialog, so the project can be demonstrated without a mail server. Set `EMAIL_DEMO_MODE=false` to forbid that.
-The seeded accounts are already verified.
+Check the configuration and send yourself a test message:
+
+```bash
+npm run email:test -- you@example.com
+```
+
+`GET /api/health` reports the active provider (`"email": "smtp" | "resend" | "demo"`). As soon as a provider is
+configured the code is no longer returned by the API. The seeded accounts are already verified.
 
 ## Deploying to Vercel (serverless)
 
@@ -111,7 +122,7 @@ Vercel detects the Express app automatically (`src/app.js` exports it as the def
    | `DB_NAME` | `tourism_recsys` |
    | `JWT_SECRET` | a long random string |
    | `AUTO_SEED` | `true` (optional, see step 2) |
-   | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | optional: real verification e-mails (otherwise demo delivery) |
+   | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (or `RESEND_API_KEY`), optional `MAIL_FROM` | real verification e-mails (otherwise demo delivery) — see *E-mail verification* above |
    | `APP_URL` | optional: public URL for the verification link (defaults to the Vercel production URL) |
 
 4. Open `https://<your-project>.vercel.app/api/health`. A configuration error (missing variable, wrong password,
@@ -138,8 +149,9 @@ Notes: the rate limiter and the database connection live per function instance.
 | `AUTO_SEED` | unset | `true`: fill a completely empty database with demo data on the first request (`AUTO_SEED_USERS`, default 100); `reset`: also repair a half-filled demo database (destructive) |
 | `APP_URL` | `http://localhost:PORT` (Vercel: production URL) | public website URL used in the verification e-mail link |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` | unset / `587` | SMTP server for verification e-mails |
-| `MAIL_FROM` | `Wayfarer <no-reply@wayfarer.local>` | sender address |
-| `EMAIL_DEMO_MODE` | `true` if no `SMTP_HOST` | return the code in the API response / show it in the UI (demo only) |
+| `RESEND_API_KEY` | unset | Resend HTTP API instead of SMTP |
+| `MAIL_FROM` | SMTP login if it is an address, else `Wayfarer <no-reply@wayfarer.local>` (Resend: `onboarding@resend.dev`) | sender address |
+| `EMAIL_DEMO_MODE` | `true` if no provider is configured | return the code in the API response / show it in the UI (demo only) |
 | `EMAIL_CODE_TTL_MINUTES` | `15` | lifetime of a verification code |
 | `CF_MODEL_TTL_MINUTES` | `60` | age after which the item–item model is rebuilt in the background |
 | `CF_NEIGHBOURS` | `30` | neighbours stored per place |
@@ -153,7 +165,8 @@ Notes: the rate limiter and the database connection live per function instance.
 |---|---|
 | `npm start` / `npm run dev` | run the API (`dev` restarts on file changes) |
 | `npm run seed` | rebuild the database with test data. `node scripts/seed.js --users=3000` creates a bigger set (≈180 000 interactions) for performance tests |
-| `npm test` | 27 API tests (use a separate database `tourism_recsys_test`, which is dropped afterwards) |
+| `npm test` | 34 tests: API, recommendations, and e-mail delivery through a real local SMTP server (separate test databases, dropped afterwards) |
+| `npm run email:test -- you@example.com` | check the e-mail provider and send a test verification e-mail |
 | `npm run build-model` | (re)build the item–item collaborative-filtering model |
 | `npm run evaluate` | offline accuracy test (hold-out): Precision/Recall/HitRate/NDCG@10 of item-CF, user-CF and baselines |
 | `npm run benchmark` | performance test on growing data sets (`--sizes=300,1000,3000,10000`), writes `docs/perf/benchmark.json` |

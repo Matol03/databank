@@ -33,10 +33,13 @@ export const config = {
     secure: process.env.SMTP_SECURE === 'true' || Number(process.env.SMTP_PORT) === 465,
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
   } : null,
-  mailFrom: process.env.MAIL_FROM || 'Wayfarer <no-reply@wayfarer.local>',
-  // Without SMTP the code cannot be delivered: in "demo" delivery the code is returned by the API and shown in the UI.
-  // Set EMAIL_DEMO_MODE=false to forbid that (registration then requires a working SMTP server).
-  emailDemoMode: process.env.EMAIL_DEMO_MODE ? process.env.EMAIL_DEMO_MODE === 'true' : !process.env.SMTP_HOST,
+  // HTTP e-mail API alternative to SMTP (https://resend.com); used when RESEND_API_KEY is set and SMTP_HOST is not
+  resendApiKey: process.env.RESEND_API_KEY || null,
+  mailFrom: process.env.MAIL_FROM || (process.env.RESEND_API_KEY && !process.env.SMTP_HOST ? 'Wayfarer <onboarding@resend.dev>' : 'Wayfarer <no-reply@wayfarer.local>'),
+  // Without a mail provider the code cannot be delivered: in "demo" delivery the code is returned by the API and shown
+  // in the UI. Set EMAIL_DEMO_MODE=false to forbid that (registration then requires a working provider).
+  // As soon as a provider is configured, demo delivery is off unless EMAIL_DEMO_MODE=true is set explicitly.
+  emailDemoMode: process.env.EMAIL_DEMO_MODE ? process.env.EMAIL_DEMO_MODE === 'true' : !(process.env.SMTP_HOST || process.env.RESEND_API_KEY),
 
   // recommendation engine
   cfModelTtlMs: Number(process.env.CF_MODEL_TTL_MINUTES || 60) * 60_000,

@@ -71,7 +71,7 @@ A 6-digit code and a one-time link (`<APP_URL>/?verify=<token>`) are e-mailed to
 `EMAIL_CODE_TTL_MINUTES` (default 15). Only SHA-256/HMAC hashes of the code and of the link token are stored, and
 neither the hashes nor the password hash are ever returned.
 
-`delivery` is `"email"` when an SMTP server is configured (`SMTP_HOST`, …). Without SMTP the server runs in
+`delivery` is `"email"` when a provider is configured (SMTP via `SMTP_HOST`, … or the Resend API via `RESEND_API_KEY`). Without one the server runs in
 **demo delivery**: the message is written to the server log and the response also contains `"demoCode": "123456"`, so the
 public demo can be used without a mail server (`EMAIL_DEMO_MODE=false` disables this; registration then fails with **503**
 until SMTP is configured). · **400** · **409** e-mail exists · **502** the e-mail could not be sent (the account is removed again).
@@ -348,4 +348,4 @@ The recommendations of any user (same query parameters as `GET /recommendations`
 
 ## 7. Health
 
-`GET /health` → `{ "status": "ok", "database": "up", "time": "…" }`
+`GET /health` → `{ "status": "ok", "database": "up", "counts": {…}, "email": "smtp" | "resend" | "demo", "time": "…" }`
