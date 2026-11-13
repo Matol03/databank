@@ -49,7 +49,7 @@ async function storeFavoritePlace(db, userId, favoritePlace) {
               $filter: {
                 input: { $ifNull: ['$favoritePlaces', []] },
                 as: 'favorite',
-                cond: { $ne: ['$favorite.itemId', { $literal: favoritePlace.itemId }] },
+                cond: { $ne: ['$$favorite.itemId', { $literal: favoritePlace.itemId }] },
               },
             },
             [{ $literal: favoritePlace }],
@@ -190,6 +190,7 @@ export async function removeInteraction(db, user, id) {
       signal: -tasteSignal(doc.type, doc.rating),
     });
   }
+  return doc.userId;
 }
 
 /**
