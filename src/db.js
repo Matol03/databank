@@ -45,6 +45,8 @@ export async function ensureIndexes(database = getDb()) {
 
   // login + uniqueness of registration
   await users.createIndex({ email: 1 }, { unique: true, name: 'uniq_email' });
+  // e-mail verification link lookup (only unverified accounts carry the field)
+  await users.createIndex({ 'emailVerification.tokenHash': 1 }, { sparse: true, name: 'verification_token' });
 
   // catalogue browsing: category filter, best-rated first
   await items.createIndex({ category: 1, 'stats.avgRating': -1 }, { name: 'category_rating' });
@@ -86,4 +88,17 @@ export async function ensureIndexes(database = getDb()) {
     { userId: 1, itemId: 1 },
     { unique: true, partialFilterExpression: { type: 'bookmark' }, name: 'uniq_user_item_bookmark' },
   );
+
+  // ---- recommendation engine (final project) ----
+  // covering indexes: the CF queries read only these four fields, so MongoDB answers them from the index
+  // without fetching the documents (PROJECTION_COVERED in explain()).
+  //   user's preference vector:            find({userId}, {itemId, type, weight})
+  await interactions.createIndex({ userId: 1, itemId: 1, type: 1, weight: 1 }, { name: 'user_item_prefs' });
+  //   user-based CF, users sharing items:  aggregate([{$match: {itemId: {$in}}}, {$group: userId}])
+  await interactions.createIndex({ itemId: 1, userId: 1, type: 1, weight: 1 }, { name: 'item_user_prefs' });
+  // cached recommendation lists: removed automatically after expiresAt; invalidated per user
+  const cache = database.collection('recommendation_cache');
+  await cache.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: 'ttl' });
+  await cache.createIndex({ userId: 1 }, { name: 'by_user' });
+  // item_similarities is read by _id only (built-in index)
 }

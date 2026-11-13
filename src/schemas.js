@@ -122,3 +122,23 @@ export const interactionSchema = z.object({
     ctx.addIssue({ code: 'custom', path: ['rating'], message: 'rating is only allowed for type "rating"' });
   }
 });
+
+/* ---------- recommendations ---------- */
+export const recommendationSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(30).default(10),
+  algorithm: z.enum(['item', 'user']).default('item'),
+  category: csv(z.enum(CATEGORIES)).optional(),
+  cache: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+});
+
+export const similarSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(20).default(6),
+});
+
+/* ---------- e-mail verification ---------- */
+const emailField = z.string().trim().toLowerCase().max(254).pipe(z.email());
+export const verifyEmailSchema = z.union([
+  z.object({ email: emailField, code: z.string().trim().regex(/^\d{6}$/, 'The code has 6 digits') }).strict(),
+  z.object({ token: z.string().trim().regex(/^[a-f0-9]{64}$/, 'Invalid verification link') }).strict(),
+]);
+export const resendSchema = z.object({ email: emailField }).strict();

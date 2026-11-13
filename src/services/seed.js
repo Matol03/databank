@@ -11,6 +11,7 @@ import { buildItemDoc } from './items.js';
 import { recomputeAll } from './stats.js';
 import { weightOf } from '../constants.js';
 import { rebuildFavoritePlaces } from './interactions.js';
+import { buildModel } from './recommendations.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
@@ -45,7 +46,11 @@ export async function seedDatabase(db, { users: USERS = 300, seed = 42, drop = t
   const pick = (arr) => arr[Math.floor(rand() * arr.length)];
   const randint = (a, b) => a + Math.floor(rand() * (b - a + 1));
 
-  if (drop) await Promise.all(['users', 'items', 'interactions'].map((c) => db.collection(c).drop().catch(() => {})));
+  if (drop) {
+    await Promise.all(['users', 'items', 'interactions', 'item_similarities', 'recommendation_cache']
+      .map((c) => db.collection(c).drop().catch(() => {})));
+    await db.collection('meta').deleteOne({ _id: 'cf_model' });
+  }
   await ensureIndexes(db);
 
   /* ---------- items ---------- */
@@ -60,7 +65,7 @@ export async function seedDatabase(db, { users: USERS = 300, seed = 42, drop = t
   const now = Date.now();
   const userDocs = [];
   const makeUser = (email, role, hash, profile, extra = {}) => ({
-    email, role, passwordHash: hash,
+    email, role, passwordHash: hash, emailVerified: true,
     profile: { interests: [], preferredSeasons: [], ...profile },
     tasteProfile: {}, recentActivity: [], favoritePlaces: [],
     createdAt: new Date(now - randint(30, 400) * DAY), ...extra,
@@ -142,6 +147,8 @@ export async function seedDatabase(db, { users: USERS = 300, seed = 42, drop = t
 
   const r = await recomputeAll(db);
   log(`  counters:     recomputed for ${r.items} items / ${r.users} users`);
+  const m = await buildModel(db);
+  log(`  CF model:     ${m.itemsWithNeighbours} items, top-${m.neighboursPerItem} neighbours, built in ${m.timings.totalMs} ms`);
 
   return { items: itemDocs.length, users: userDocs.length, interactions: interactions.length };
 }
