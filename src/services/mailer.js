@@ -104,7 +104,7 @@ export function describeMailError(err) {
     const pass = config.smtp?.auth?.pass || '';
     const hints = [
       user ? (user.includes('@') ? `SMTP_USER is an address at ${user.split('@')[1]}` : 'SMTP_USER is not a full e-mail address') : 'SMTP_USER is empty',
-      pass ? `SMTP_PASS has ${pass.length} characters${/gmail/i.test(where) && pass.length !== 16 ? ' (a Gmail App Password has 16)' : ''}` : 'SMTP_PASS is empty',
+      pass ? `SMTP_PASS has ${pass.length} characters (${(pass.match(/[A-Za-z]/g) || []).length} letters, ${(pass.match(/[0-9]/g) || []).length} digits, ${(pass.match(/[^A-Za-z0-9]/g) || []).length} other)${/gmail/i.test(where) && pass.length !== 16 ? '; a Gmail App Password is exactly 16 letters' : ''}` : 'SMTP_PASS is empty',
     ].join('; ');
     return `SMTP login rejected by ${where} (${rc || code}). ${hints}. Gmail needs a 16-character App Password of the same account as SMTP_USER.`;
   }

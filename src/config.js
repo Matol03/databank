@@ -32,7 +32,12 @@ function smtpConfig() {
   const secure = port === 465 ? true : [587, 25, 2525].includes(port) ? false : env('SMTP_SECURE') === 'true';
   const user = env('SMTP_USER');
   let pass = env('SMTP_PASS');
-  if (pass && /gmail\.com|googlemail\.com/i.test(host)) pass = pass.replace(/\s+/g, '');
+  if (pass && /gmail\.com|googlemail\.com/i.test(host)) {
+    // App Passwords are 16 letters, shown in groups of 4: drop spaces and invisible characters picked up when copying
+    pass = pass.replace(/[\s​-‍⁠﻿]+/g, '');
+    const letters = pass.replace(/[^A-Za-z]/g, '');
+    if (letters.length === 16 && pass.length !== 16) pass = letters; // stray dot, dash or quote around it
+  }
   return { host, port, secure, auth: user ? { user, pass } : undefined };
 }
 
