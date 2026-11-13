@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import itemRoutes from './routes/items.js';
 import interactionRoutes from './routes/interactions.js';
+import recommendationRoutes from './routes/recommendations.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 let connecting = null;
@@ -72,7 +73,7 @@ export function createApp() {
     res.json({
       name: 'Tourism recommender platform API',
       status: 'running',
-      try: ['/api/health', '/api/items/popular?limit=3', '/api/items/search?q=lake'],
+      try: ['/api/health', '/api/items/popular?limit=3', '/api/items/search?q=lake', '/api/recommendations/model'],
       docs: 'https://github.com/Matol03/databank/blob/main/docs/API.md',
     });
   });
@@ -99,6 +100,7 @@ export function createApp() {
   app.use('/api/users', userRoutes);
   app.use('/api/items', itemRoutes);
   app.use('/api/interactions', interactionRoutes);
+  app.use('/api/recommendations', recommendationRoutes);
 
   app.use(notFound);
   app.use(errorHandler);

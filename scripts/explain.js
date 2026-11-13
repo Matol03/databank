@@ -48,6 +48,9 @@ await run('geo: within 300 km of Almaty', items.find({ location: { $geoWithin: {
 await run('history: last 20 events of a user', inter.find({ userId: someUser._id }).sort({ createdAt: -1 }).limit(20));
 await run('item-based CF: events of one item', inter.find({ itemId: someItem._id }));
 await run('rating upsert lookup (user,item)', inter.find({ userId: someUser._id, itemId: someItem._id, type: 'rating' }));
+await run('CF: user preferences (covered)', inter.find({ userId: someUser._id }, { projection: { _id: 0, itemId: 1, type: 1, weight: 1 } }));
+await run('CF: neighbour lists of 5 items', db.collection('item_similarities').find({ _id: { $in: (await items.find().limit(5).toArray()).map((i) => i._id) } }));
+await run('CF: cached list of a user', db.collection('recommendation_cache').find({ userId: someUser._id }));
 
 const scan = (r) => (r.plan.includes('COLLSCAN') ? 'COLLSCAN' : 'IXSCAN');
 console.log('\nQuery plans (explain "executionStats")\n');

@@ -3,8 +3,9 @@ import { getDb } from '../db.js';
 import { toObjectId, AppError } from '../errors.js';
 import { requireRole } from '../middleware/auth.js';
 import {
-  createItemSchema, updateItemSchema, listSchema, searchSchema, popularSchema,
+  createItemSchema, updateItemSchema, listSchema, searchSchema, popularSchema, similarSchema,
 } from '../schemas.js';
+import { similarItems } from '../services/recommendations.js';
 import { buildItemDoc, derivedFields, searchItems, getItem, popularItems } from '../services/items.js';
 
 const router = Router();
@@ -21,6 +22,11 @@ router.get('/search', async (req, res) => {
 router.get('/popular', async (req, res) => {
   const data = await popularItems(getDb(), popularSchema.parse(req.query));
   res.json({ data });
+});
+
+// "travellers who liked this also liked" (item-based collaborative filtering)
+router.get('/:id/similar', async (req, res) => {
+  res.json(await similarItems(getDb(), req.params.id, similarSchema.parse(req.query)));
 });
 
 router.get('/:id', async (req, res) => {
