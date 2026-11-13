@@ -52,3 +52,37 @@ export async function recomputeAll(db) {
 
   return { items: itemOps.length, users: userOps.length };
 }
+
+/**
+ * Recomputes items.stats for the given items only, from their remaining interactions
+ * (used after the interactions of a deleted account have been removed).
+ */
+export async function recomputeItemStats(db, itemIds) {
+  if (!itemIds.length) return 0;
+  const branches = Object.entries(POPULARITY).map(([type, points]) => ({ case: { $eq: ['$type', type] }, then: points }));
+  const rows = await db.collection('interactions').aggregate([
+    { $match: { itemId: { $in: itemIds } } },
+    {
+      $group: {
+        _id: '$itemId',
+        viewCount: { $sum: { $cond: [{ $eq: ['$type', 'view'] }, 1, 0] } },
+        ratingCount: { $sum: { $cond: [{ $eq: ['$type', 'rating'] }, 1, 0] } },
+        ratingSum: { $sum: { $cond: [{ $eq: ['$type', 'rating'] }, '$rating', 0] } },
+        popularity: { $sum: { $switch: { branches, default: 0 } } },
+      },
+    },
+  ]).toArray();
+  const byId = new Map(rows.map((r) => [String(r._id), r]));
+  const ops = itemIds.map((id) => {
+    const r = byId.get(String(id)) || { viewCount: 0, ratingCount: 0, ratingSum: 0, popularity: 0 };
+    const avgRating = r.ratingCount ? Math.round((r.ratingSum / r.ratingCount) * 100) / 100 : 0;
+    return {
+      updateOne: {
+        filter: { _id: id },
+        update: { $set: { stats: { viewCount: r.viewCount, ratingCount: r.ratingCount, ratingSum: r.ratingSum, avgRating, popularity: r.popularity } } },
+      },
+    };
+  });
+  await db.collection('items').bulkWrite(ops, { ordered: false });
+  return ops.length;
+}

@@ -132,6 +132,14 @@ The user's interactions, newest first, each joined with basic item data. Bookmar
   "page": 1, "limit": 10, "total": 4, "totalPages": 1 }
 ```
 
+### `DELETE /users/me`
+
+Deletes the signed-in account **permanently**. Body: `{ "password": "..." }` (the password is asked again).
+Removes the user document, all of the user's interactions and cached recommendations, and recomputes the counters
+(`stats`) of the places the user had interacted with. The old token stops working immediately and the e-mail address
+can be registered again. → **200** `{ "deleted": true, "removedInteractions": 12, "updatedItems": 7 }`
+· **400** no password · **401** no token · **403** `InvalidPassword` · **409** `LastAdmin` (the only administrator).
+
 ---
 
 ## 3. Item catalogue

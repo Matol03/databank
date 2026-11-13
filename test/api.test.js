@@ -447,6 +447,49 @@ describe('recommendations (collaborative filtering)', () => {
   });
 });
 
+describe('account deletion', () => {
+  test('deletes the account, its history and cache, and reverts the counters of the places it touched', async () => {
+    const reg = await call('POST', '/api/auth/register', { body: { email: 'leaving@test.com', password: 'Secret123', profile: { fullName: 'Leaving User', age: 40, city: 'Astana' } } });
+    const token = (await call('POST', '/api/auth/verify-email', { body: { email: 'leaving@test.com', code: reg.body.demoCode } })).body.token;
+    const item = await call('POST', '/api/items', { token: adminToken, body: sampleItem({ name: 'Farewell Falls', category: 'nature' }) });
+    const itemId = item.body._id;
+    await call('POST', '/api/interactions', { token, body: { itemId, type: 'view' } });
+    await call('POST', '/api/interactions', { token, body: { itemId, type: 'bookmark' } });
+    await call('POST', '/api/interactions', { token, body: { itemId, type: 'rating', rating: 5 } });
+    await call('GET', '/api/recommendations?limit=2', { token }); // fills the cache
+    const before = (await call('GET', `/api/items/${itemId}`)).body.stats;
+    assert.equal(before.ratingCount, 1);
+    assert.ok(before.popularity > 0);
+
+    assert.equal((await call('DELETE', '/api/users/me', { body: { password: 'Secret123' } })).status, 401);
+    assert.equal((await call('DELETE', '/api/users/me', { token, body: {} })).status, 400);
+    const wrong = await call('DELETE', '/api/users/me', { token, body: { password: 'Wrong1234' } });
+    assert.equal(wrong.status, 403);
+    assert.equal(wrong.body.error, 'InvalidPassword');
+
+    const del = await call('DELETE', '/api/users/me', { token, body: { password: 'Secret123' } });
+    assert.equal(del.status, 200);
+    assert.equal(del.body.deleted, true);
+    assert.equal(del.body.removedInteractions, 3);
+
+    const { ObjectId } = await import('mongodb');
+    const userId = new ObjectId(reg.body.user._id);
+    assert.equal(await db.collection('users').countDocuments({ email: 'leaving@test.com' }), 0);
+    assert.equal(await db.collection('interactions').countDocuments({ userId }), 0);
+    assert.equal(await db.collection('recommendation_cache').countDocuments({ userId }), 0);
+    assert.deepEqual((await call('GET', `/api/items/${itemId}`)).body.stats, { viewCount: 0, ratingCount: 0, ratingSum: 0, avgRating: 0, popularity: 0 });
+    assert.equal((await call('GET', '/api/users/me', { token })).status, 401); // the old token stops working
+    assert.equal((await call('POST', '/api/auth/login', { body: { email: 'leaving@test.com', password: 'Secret123' } })).status, 401);
+    assert.equal((await call('POST', '/api/auth/register', { body: { email: 'leaving@test.com', password: 'Secret123', profile: { fullName: 'Back Again', age: 40, city: 'Astana' } } })).status, 201); // address is free again
+  });
+
+  test('the last administrator cannot delete their account', async () => {
+    const r = await call('DELETE', '/api/users/me', { token: adminToken, body: { password: 'Admin12345' } });
+    assert.equal(r.status, 409);
+    assert.equal(r.body.error, 'LastAdmin');
+  });
+});
+
 test('health check and unknown routes', async () => {
   assert.equal((await call('GET', '/api/health')).body.status, 'ok');
   assert.equal((await call('GET', '/api/nothing')).status, 404);

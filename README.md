@@ -8,11 +8,11 @@ and their interactions. The project includes a responsive **frontend**, a **REST
   item–item similarity model, user-based collaborative filtering on request, cold-start fallback, two-level cache,
   "travellers who liked this also liked", offline evaluation (Precision/Recall/NDCG) and a benchmark from 300 to
   10 000 users. See [`docs/RECOMMENDATIONS.md`](docs/RECOMMENDATIONS.md) and [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
-* Users register with **e-mail verification** (6-digit code or link, SMTP or demo delivery), log in (JWT), keep a travel profile.
+* Users register with **e-mail verification** (6-digit code or link, SMTP or demo delivery), log in (JWT), keep a travel profile, and can delete their account (with password confirmation) from the profile window.
 * Item catalogue of 64 real destinations (Kazakhstan, Central Asia, Europe, Asia, …) with full CRUD for admins.
 * Interactions: views, bookmarks, visits, bookings and 1–5 ratings, stored as an event log.
 * Search: full-text (weighted), prefix, filters (category, country, price, season, rating, tags) and geospatial "near me".
-* 34 automated tests (incl. end-to-end e-mail delivery through a local SMTP server), query plans checked with `explain()`.
+* 37 automated tests (incl. end-to-end e-mail delivery through a local SMTP server), query plans checked with `explain()`.
 
 Documentation: [`docs/API.md`](docs/API.md) (API reference) · [`docs/RECOMMENDATIONS.md`](docs/RECOMMENDATIONS.md) (algorithms) · [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) (performance tests and optimisation) · [`docs/DATASET.md`](docs/DATASET.md) (MongoDB collections, data fields, and inspection queries) · [`docs/PROPOSAL.docx`](docs/PROPOSAL.docx) (project proposal,
 data-model comparison, indexes, planned algorithm, relevance to the dissertation).
@@ -165,7 +165,7 @@ Notes: the rate limiter and the database connection live per function instance.
 |---|---|
 | `npm start` / `npm run dev` | run the API (`dev` restarts on file changes) |
 | `npm run seed` | rebuild the database with test data. `node scripts/seed.js --users=3000` creates a bigger set (≈180 000 interactions) for performance tests |
-| `npm test` | 34 tests: API, recommendations, and e-mail delivery through a real local SMTP server (separate test databases, dropped afterwards) |
+| `npm test` | 37 tests: API, recommendations, and e-mail delivery through a real local SMTP server (separate test databases, dropped afterwards) |
 | `npm run email:test -- you@example.com` | check the e-mail provider and send a test verification e-mail |
 | `npm run build-model` | (re)build the item–item collaborative-filtering model |
 | `npm run evaluate` | offline accuracy test (hold-out): Precision/Recall/HitRate/NDCG@10 of item-CF, user-CF and baselines |

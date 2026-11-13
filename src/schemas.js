@@ -28,6 +28,10 @@ export const registerSchema = z.object({
   profile: z.object(profileShape).partial().required({ fullName: true, age: true, city: true }).strict(),
 }).strict();
 
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1, 'Enter your password to confirm').max(72),
+}).strict();
+
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase(),
   password: z.string().min(1).max(72),
