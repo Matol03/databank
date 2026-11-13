@@ -8,14 +8,14 @@
   <title>Wayfarer — Find your next somewhere</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://images.unsplash.com">
-  <link rel="stylesheet" href="/styles.css">
-  <script src="/app.js?v=20261106-2" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=20261113-1">
+  <script src="/app.js?v=20261113-1" defer></script>
 </head>
 <body>
   <div class="announcement"><span class="live-dot"></span> New places. Fresh perspectives. Your next story starts here. <a href="#discover">Start exploring ↗</a></div>
   <header class="header">
     <a class="brand" href="#top" aria-label="Wayfarer home"><span class="brand-symbol">w.</span><span>wayfarer<span class="brand-dot">.</span></span></a>
-    <nav class="desktop-nav" aria-label="Main navigation"><a class="active" href="#discover">Discover</a><a href="#philosophy">Our philosophy</a><a href="#how">How it works</a></nav>
+    <nav class="desktop-nav" aria-label="Main navigation"><a href="#for-you">For you</a><a class="active" href="#discover">Discover</a><a href="#philosophy">Our philosophy</a><a href="#how">How it works</a></nav>
     <div class="header-actions">
       <button class="nearby-link" id="nearby" type="button">⌖ <span>Near me</span></button>
       <button class="button button-dark button-small" id="auth-open" type="button">Sign in ↗</button>
@@ -23,7 +23,7 @@
       <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false"><span></span><span></span></button>
     </div>
   </header>
-  <nav class="mobile-nav" id="mobile-nav" hidden><a href="#discover">Discover</a><a href="#philosophy">Our philosophy</a><a href="#how">How it works</a><button id="mobile-auth" type="button">Sign in / Create account</button></nav>
+  <nav class="mobile-nav" id="mobile-nav" hidden><a href="#for-you">For you</a><a href="#discover">Discover</a><a href="#philosophy">Our philosophy</a><a href="#how">How it works</a><button id="mobile-auth" type="button">Sign in / Create account</button></nav>
 
   <main id="top">
     <section class="hero">
@@ -46,6 +46,21 @@
         <div class="hero-bottom"><span class="scroll-label">SCROLL TO EXPLORE</span><div class="hero-metrics"><div><b id="destination-count">64</b><small>places to discover</small></div><div><b>10</b><small>ways to wander</small></div><div><b>01</b><small>next great story</small></div></div></div>
       </div>
       <span class="photo-caption">A world of possibilities ↗</span>
+    </section>
+
+    <section class="for-you wrap" id="for-you">
+      <div class="section-head">
+        <div><div class="eyebrow"><i></i> PICKED FOR YOU</div><h2>Recommended <em>for you.</em></h2><p id="rec-intro">Places chosen by collaborative filtering: travellers with tastes like yours loved them.</p></div>
+        <div class="rec-tools" id="rec-tools" hidden>
+          <span>ALGORITHM</span>
+          <div class="rec-switch" role="group" aria-label="Recommendation algorithm">
+            <button class="chip active" type="button" data-algorithm="item" aria-pressed="true">Similar places</button>
+            <button class="chip" type="button" data-algorithm="user" aria-pressed="false">Similar travellers</button>
+          </div>
+        </div>
+      </div>
+      <div class="rec-meta" id="rec-meta" aria-live="polite"></div>
+      <div class="cards rec-cards" id="rec-cards"><div class="empty rec-empty"><b>✳</b><h3>Your personal list starts here.</h3><p>Sign in, then save, rate or visit a few places. We match your taste with other travellers to suggest where to go next.</p><button class="button button-dark" type="button" data-action="signin">Sign in to see recommendations ↗</button></div></div>
     </section>
 
     <section class="discovery wrap" id="discover">
@@ -101,6 +116,13 @@
           <label for="register-password">Create a password</label>
           <input id="register-password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required placeholder="At least 8 characters, a letter and a number">
           <button class="button button-dark full" type="submit">Create account ↗</button>
+        </form><form id="verify-form" hidden>
+          <p class="verify-note">We sent a 6-digit code to <b id="verify-email-label">your e-mail</b>. Enter it to activate your account.</p>
+          <div class="demo-code" id="demo-code" hidden></div>
+          <label for="verify-code">Verification code</label>
+          <input id="verify-code" class="code-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="••••••" required>
+          <button class="button button-dark full" type="submit">Verify e-mail ↗</button>
+          <div class="verify-links"><button class="text-button" type="button" id="verify-resend">Send a new code</button><button class="text-button" type="button" id="verify-back">Use another e-mail</button></div>
         </form><p class="form-message" id="auth-message" role="status"></p></div></dialog>
   <dialog id="detail-dialog"><div class="detail-card" id="detail-content"></div></dialog>
   <dialog id="profile-dialog"><div class="dialog-card" id="profile-content"></div></dialog>
