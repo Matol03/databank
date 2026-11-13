@@ -4,7 +4,7 @@
  * Uses the same provider selection as the server (SMTP_HOST, else RESEND_API_KEY, else demo).
  */
 import { config } from '../src/config.js';
-import { emailProvider, verifyProvider, sendVerificationEmail, senderAddress } from '../src/services/mailer.js';
+import { emailProvider, verifyProvider, sendVerificationEmail, senderAddress, describeMailError } from '../src/services/mailer.js';
 
 const to = process.argv[2];
 const provider = emailProvider();
@@ -25,9 +25,7 @@ try {
   await sendVerificationEmail({ to, name: 'Wayfarer test', code: '123456', link: `${config.appUrl}/?verify=test`, minutes: 15 });
   console.log(`\nTest e-mail sent to ${to}. Check the inbox (and the spam folder).`);
 } catch (err) {
-  console.error(`\nFAILED: ${err.message}`);
-  if (/535|Invalid login|Username and Password/i.test(err.message)) {
-    console.error('The SMTP login was rejected. With Gmail use a 16-character App Password (Google Account > Security > App passwords), not the normal password.');
-  }
+  console.error(`\nFAILED: ${describeMailError(err)}`);
+  console.error(`(${err.message})`);
   process.exit(1);
 }
