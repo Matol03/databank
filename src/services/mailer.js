@@ -100,7 +100,13 @@ export function describeMailError(err) {
   const rc = err?.responseCode;
   const where = config.smtp ? `${config.smtp.host}:${config.smtp.port}` : 'the mail server';
   if (code === 'EAUTH' || rc === 535 || rc === 534) {
-    return `SMTP login rejected by ${where} (${rc || code}). Check SMTP_USER and SMTP_PASS; Gmail needs a 16-character App Password, not the normal password.`;
+    const user = config.smtp?.auth?.user || '';
+    const pass = config.smtp?.auth?.pass || '';
+    const hints = [
+      user ? (user.includes('@') ? `SMTP_USER is an address at ${user.split('@')[1]}` : 'SMTP_USER is not a full e-mail address') : 'SMTP_USER is empty',
+      pass ? `SMTP_PASS has ${pass.length} characters${/gmail/i.test(where) && pass.length !== 16 ? ' (a Gmail App Password has 16)' : ''}` : 'SMTP_PASS is empty',
+    ].join('; ');
+    return `SMTP login rejected by ${where} (${rc || code}). ${hints}. Gmail needs a 16-character App Password of the same account as SMTP_USER.`;
   }
   if (/wrong version number|ssl3_get_record|tls/i.test(msg) && code !== 'EAUTH') {
     return `TLS mismatch with ${where}: use port 465 (implicit TLS) or 587 (STARTTLS).`;

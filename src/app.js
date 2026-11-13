@@ -89,7 +89,8 @@ export function createApp() {
     const body = {
       status: 'ok', database: 'up', name: db.databaseName,
       counts: { items, users, interactions },
-      email: emailProvider(), // smtp | resend | demo (which provider sends verification e-mails) ...(marker && { seed: marker.status, ...(marker.error && { seedError: marker.error }) }),
+      email: emailProvider(), // smtp | resend | demo (which provider sends verification e-mails)
+      ...(process.env.VERCEL_DEPLOYMENT_ID && { deployment: process.env.VERCEL_DEPLOYMENT_ID.slice(-8) }), ...(marker && { seed: marker.status, ...(marker.error && { seedError: marker.error }) }),
       time: new Date().toISOString(),
     };
     if (items === 0) {
