@@ -14,6 +14,7 @@ let base;
 let db;
 let adminToken;
 let userToken;
+let annCode;
 
 const call = async (method, path, { token, body } = {}) => {
   const res = await fetch(base + path, {
@@ -57,7 +58,12 @@ describe('authentication and profiles', () => {
       body: { email: 'Ann@Test.com', password: 'Secret123', profile: { fullName: 'Ann Lee', age: 24, city: 'Astana', interests: ['beach', 'beach'] } },
     });
     assert.equal(r.status, 201);
-    assert.ok(r.body.token);
+    assert.equal(r.body.token, undefined); // no session before the e-mail is confirmed
+    assert.equal(r.body.verificationRequired, true);
+    assert.equal(r.body.delivery, 'demo'); // no SMTP server in the test environment
+    assert.match(r.body.demoCode, /^\d{6}$/);
+    assert.equal(r.body.user.emailVerified, false);
+    assert.equal(r.body.user.emailVerification, undefined); // code hashes are never returned
     assert.equal(r.body.user.email, 'ann@test.com');
     assert.equal(r.body.user.passwordHash, undefined);
     assert.deepEqual(r.body.user.favoritePlaces, []);
@@ -70,7 +76,44 @@ describe('authentication and profiles', () => {
     assert.equal(savedUser.profile.city, 'Astana');
     assert.deepEqual(savedUser.profile.interests, ['beach']);
     assert.equal(r.body.user.role, 'user');
-    userToken = r.body.token;
+    assert.notEqual(savedUser.emailVerification.codeHash, r.body.demoCode); // stored hashed
+    annCode = r.body.demoCode;
+  });
+
+  test('e-mail verification: login is blocked until the 6-digit code is confirmed', async () => {
+    const early = await call('POST', '/api/auth/login', { body: { email: 'ann@test.com', password: 'Secret123' } });
+    assert.equal(early.status, 403);
+    assert.equal(early.body.error, 'EmailNotVerified');
+    const wrong = await call('POST', '/api/auth/verify-email', { body: { email: 'ann@test.com', code: annCode === '000000' ? '111111' : '000000' } });
+    assert.equal(wrong.status, 400);
+    assert.equal((await call('POST', '/api/auth/verify-email', { body: { email: 'ann@test.com', code: '12ab' } })).status, 400);
+    assert.equal((await call('POST', '/api/auth/verify-email', { body: { token: 'f'.repeat(64) } })).status, 400);
+    const ok = await call('POST', '/api/auth/verify-email', { body: { email: 'ann@test.com', code: annCode } });
+    assert.equal(ok.status, 200);
+    assert.ok(ok.body.token);
+    assert.equal(ok.body.user.emailVerified, true);
+    userToken = ok.body.token;
+    const saved = await db.collection('users').findOne({ email: 'ann@test.com' });
+    assert.equal(saved.emailVerification, undefined); // the code cannot be reused
+    assert.equal((await call('POST', '/api/auth/verify-email', { body: { email: 'ann@test.com', code: annCode } })).status, 400);
+  });
+
+  test('verification: resend does not reveal accounts, is throttled, and wrong codes are limited', async () => {
+    const unknown = await call('POST', '/api/auth/resend-verification', { body: { email: 'nobody@test.com' } });
+    assert.equal(unknown.status, 200);
+    assert.equal(unknown.body.demoCode, undefined);
+    const reg = await call('POST', '/api/auth/register', { body: { email: 'eve@test.com', password: 'Secret123', profile: { fullName: 'Eve', age: 30, city: 'Almaty' } } });
+    assert.equal(reg.status, 201);
+    assert.equal((await call('POST', '/api/auth/resend-verification', { body: { email: 'eve@test.com' } })).status, 429); // < 1 min
+    const wrong = reg.body.demoCode === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i++) await call('POST', '/api/auth/verify-email', { body: { email: 'eve@test.com', code: wrong } });
+    const locked = await call('POST', '/api/auth/verify-email', { body: { email: 'eve@test.com', code: reg.body.demoCode } });
+    assert.equal(locked.status, 429); // even the right code is refused after 5 failures
+    await db.collection('users').updateOne({ email: 'eve@test.com' }, { $set: { 'emailVerification.sentAt': new Date(0) } });
+    const again = await call('POST', '/api/auth/resend-verification', { body: { email: 'eve@test.com' } });
+    assert.equal(again.status, 200);
+    const ok = await call('POST', '/api/auth/verify-email', { body: { email: 'eve@test.com', code: again.body.demoCode } });
+    assert.equal(ok.status, 200);
   });
 
   test('rejects duplicate e-mail (409), weak password (400) and unknown fields (400)', async () => {
@@ -302,6 +345,105 @@ describe('search', () => {
     const pop = await call('GET', '/api/items/popular?limit=1');
     assert.equal(pop.body.data.length, 1);
     assert.equal(pop.body.data[0].name, 'Interaction Lake'); // the only item with interactions
+  });
+});
+
+describe('recommendations (collaborative filtering)', () => {
+  const ids = {};
+  before(async () => {
+    const { ObjectId } = await import('mongodb');
+    const mk = (name, category) => buildItemDoc({
+      name, description: `${name}, a place used by the recommendation tests.`, category, country: 'Kazakhstan', city: 'Rec City',
+      location: { lat: 45, lon: 70 }, tags: [], bestSeasons: [], priceLevel: 2, avgDailyCostUSD: 60,
+    });
+    const docs = [mk('Rec Alpha', 'mountains'), mk('Rec Beta', 'mountains'), mk('Rec Gamma', 'nature'), mk('Rec Delta', 'beach')];
+    const r = await db.collection('items').insertMany(docs);
+    ['alpha', 'beta', 'gamma', 'delta'].forEach((k, i) => { ids[k] = r.insertedIds[i]; });
+    // five travellers like Alpha and Beta; three of them also like Gamma; nobody likes Delta
+    const events = [];
+    for (let n = 0; n < 5; n++) {
+      const userId = new ObjectId();
+      const like = (itemId) => events.push({ userId, itemId, type: 'bookmark', weight: 3, createdAt: new Date() });
+      like(ids.alpha); like(ids.beta);
+      if (n < 3) like(ids.gamma);
+    }
+    await db.collection('interactions').insertMany(events);
+    // Ann (userToken) likes Alpha
+    await call('POST', '/api/interactions', { token: userToken, body: { itemId: String(ids.alpha), type: 'bookmark' } });
+  });
+
+  test('only admins can rebuild the model; the model stores item neighbours', async () => {
+    assert.equal((await call('POST', '/api/recommendations/model/rebuild', { token: userToken })).status, 403);
+    const r = await call('POST', '/api/recommendations/model/rebuild', { token: adminToken });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.itemsWithNeighbours >= 3);
+    assert.ok(r.body.timings.totalMs >= 0);
+    const sim = await db.collection('item_similarities').findOne({ _id: ids.alpha });
+    assert.equal(String(sim.neighbours[0].itemId), String(ids.beta)); // co-liked by everybody
+    const info = await call('GET', '/api/recommendations/model');
+    assert.equal(info.body.version, r.body.version);
+  });
+
+  test('item-based recommendations: requires a token, excludes known places, explains the reason', async () => {
+    assert.equal((await call('GET', '/api/recommendations')).status, 401);
+    const r = await call('GET', '/api/recommendations?limit=3&cache=false', { token: userToken });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.algorithm, 'item');
+    assert.match(r.body.strategy, /^collaborative/);
+    const names = r.body.data.map((d) => d.item.name);
+    assert.equal(names[0], 'Rec Beta');
+    assert.ok(names.includes('Rec Gamma'));
+    assert.ok(!names.includes('Rec Alpha')); // already liked
+    assert.equal(r.body.data[0].source, 'item-cf');
+    assert.equal(r.body.data[0].score, 1);
+    assert.equal(r.body.data[0].because[0].name, 'Rec Alpha');
+    assert.equal(r.body.data.length, 3); // topped up with popular places
+    assert.equal((await call('GET', '/api/recommendations?algorithm=magic', { token: userToken })).status, 400);
+    const cat = await call('GET', '/api/recommendations?category=nature&cache=false', { token: userToken });
+    assert.ok(cat.body.data.every((d) => d.item.category === 'nature'));
+  });
+
+  test('user-based recommendations find the same neighbours', async () => {
+    const r = await call('GET', '/api/recommendations?limit=2&algorithm=user&cache=false', { token: userToken });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.algorithm, 'user');
+    assert.equal(r.body.data[0].item.name, 'Rec Beta');
+    assert.equal(r.body.data[0].source, 'user-cf');
+    assert.ok(r.body.data[0].similarTravellers >= 5);
+  });
+
+  test('results are cached and the cache is invalidated by a new interaction', async () => {
+    const first = await call('GET', '/api/recommendations?limit=3', { token: userToken });
+    assert.equal(first.body.cache, 'miss');
+    const second = await call('GET', '/api/recommendations?limit=3', { token: userToken });
+    assert.equal(second.body.cache, 'memory');
+    assert.deepEqual(second.body.data.map((d) => d.item._id), first.body.data.map((d) => d.item._id));
+    assert.equal(await db.collection('recommendation_cache').countDocuments({}) >= 1, true);
+    await call('POST', '/api/interactions', { token: userToken, body: { itemId: String(ids.beta), type: 'bookmark' } });
+    const third = await call('GET', '/api/recommendations?limit=3', { token: userToken });
+    assert.equal(third.body.cache, 'miss');
+    assert.ok(!third.body.data.some((d) => d.item.name === 'Rec Beta')); // now known
+  });
+
+  test('cold start: a user without history gets popular places from their interests', async () => {
+    const reg = await call('POST', '/api/auth/register', { body: { email: 'new@test.com', password: 'Secret123', profile: { fullName: 'New User', age: 22, city: 'Astana', interests: ['nature'] } } });
+    const ok = await call('POST', '/api/auth/verify-email', { body: { email: 'new@test.com', code: reg.body.demoCode } });
+    const r = await call('GET', '/api/recommendations?limit=2', { token: ok.body.token });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.strategy, 'cold-start');
+    assert.ok(r.body.data.every((d) => d.source === 'popular' && d.item.category === 'nature'));
+  });
+
+  test('similar places ("travellers who liked this also liked") and admin view of a user', async () => {
+    const r = await call('GET', `/api/items/${ids.alpha}/similar?limit=2`);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.data[0].item.name, 'Rec Beta');
+    assert.equal(r.body.data[0].source, 'item-cf');
+    assert.ok(r.body.data[0].commonUsers >= 5);
+    assert.equal((await call('GET', '/api/items/000000000000000000000000/similar')).status, 404);
+    const ann = await db.collection('users').findOne({ email: 'ann@test.com' });
+    assert.equal((await call('GET', `/api/recommendations/users/${ann._id}`, { token: userToken })).status, 403);
+    assert.equal((await call('GET', `/api/recommendations/users/${ann._id}?cache=false`, { token: adminToken })).status, 200);
   });
 });
 
