@@ -32,7 +32,8 @@ export function emailProvider() {
 
 /** Sender address: MAIL_FROM, else the SMTP login when it is an e-mail address (Gmail requires that), else the default. */
 export function senderAddress() {
-  if (process.env.MAIL_FROM) return process.env.MAIL_FROM;
+  const from = process.env.MAIL_FROM?.trim().replace(/^(['"])(.*)$/, '$2').trim();
+  if (from) return from;
   const user = config.smtp?.auth?.user;
   if (config.smtp && user && user.includes('@')) return `Wayfarer <${user}>`;
   return config.mailFrom;
@@ -87,6 +88,32 @@ export async function sendMail(message) {
 export async function sendVerificationEmail(params) {
   const provider = await sendMail(verificationMessage(params));
   return provider === 'demo' ? 'demo' : 'email';
+}
+
+/**
+ * Turns a delivery error into a short, safe explanation for the API response and the logs
+ * (category and server reply only — never the credentials).
+ */
+export function describeMailError(err) {
+  const msg = String(err?.message || err);
+  const code = err?.code;
+  const rc = err?.responseCode;
+  const where = config.smtp ? `${config.smtp.host}:${config.smtp.port}` : 'the mail server';
+  if (code === 'EAUTH' || rc === 535 || rc === 534) {
+    return `SMTP login rejected by ${where} (${rc || code}). Check SMTP_USER and SMTP_PASS; Gmail needs a 16-character App Password, not the normal password.`;
+  }
+  if (/wrong version number|ssl3_get_record|tls/i.test(msg) && code !== 'EAUTH') {
+    return `TLS mismatch with ${where}: use port 465 (implicit TLS) or 587 (STARTTLS).`;
+  }
+  if (code === 'EDNS' || /ENOTFOUND|getaddrinfo/i.test(msg)) return `SMTP_HOST "${config.smtp?.host}" was not found (DNS).`;
+  if (['ETIMEDOUT', 'ECONNECTION', 'ESOCKET', 'ECONNREFUSED'].includes(code) || /timeout|ECONNREFUSED|ECONNRESET/i.test(msg)) {
+    return `Could not connect to ${where} (${code || 'connection error'}). Check SMTP_HOST and SMTP_PORT (465 or 587).`;
+  }
+  if (code === 'EENVELOPE' || [550, 553, 554].includes(rc)) {
+    return `The mail server refused the message (${rc || code}): ${(err.response || msg).slice(0, 160)}. The sender (MAIL_FROM) usually has to be the SMTP account address or a verified sender.`;
+  }
+  if (/^Resend API/.test(msg)) return msg.slice(0, 200);
+  return `${code || 'Error'}: ${msg.slice(0, 160)}`;
 }
 
 /** Checks the SMTP login without sending anything (used by `npm run email:test`). */

@@ -15,7 +15,7 @@ export function errorHandler(err, _req, res, _next) {
     });
   }
   if (err instanceof AppError) {
-    return res.status(err.status).json({ error: err.code || 'Error', message: err.message });
+    return res.status(err.status).json({ error: err.code || 'Error', message: err.message, ...(err.reason && { reason: err.reason }) });
   }
   if (err?.code === 11000) {
     return res.status(409).json({ error: 'Conflict', message: 'A record with the same unique value already exists' });

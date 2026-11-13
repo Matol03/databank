@@ -117,11 +117,31 @@ describe('verification e-mail over SMTP', () => {
     assert.equal((await call('POST', '/api/auth/verify-email', { email: 'resend.user@test.com', code: newCode })).status, 200);
   });
 
+  test('a rejected SMTP login gives 502 with a safe reason (no password in the answer)', async () => {
+    const strict = new SMTPServer({
+      disabledCommands: ['STARTTLS'], allowInsecureAuth: true, logger: false,
+      onAuth(auth, session, cb) { cb(new Error('Invalid login')); },
+    });
+    await new Promise((r) => strict.listen(0, '127.0.0.1', r));
+    const saved = config.smtp;
+    config.smtp = { host: '127.0.0.1', port: strict.server.address().port, secure: false, ignoreTLS: true, auth: { user: 'me@test.com', pass: 'wrong-secret' } };
+    try {
+      const r = await register('auth.fail@test.com');
+      assert.equal(r.status, 502);
+      assert.match(r.body.reason, /login rejected/i);
+      assert.ok(!JSON.stringify(r.body).includes('wrong-secret'));
+    } finally {
+      config.smtp = saved;
+      await new Promise((r) => strict.close(r));
+    }
+  });
+
   test('an unreachable SMTP server gives 502 and the address can be registered again', async () => {
     const saved = config.smtp;
     config.smtp = { host: '127.0.0.1', port: 1, secure: false, ignoreTLS: true };
     const r = await register('down.user@test.com');
     assert.equal(r.status, 502);
+    assert.match(r.body.reason, /connect/i);
     assert.equal(await db.collection('users').countDocuments({ email: 'down.user@test.com' }), 0);
     config.smtp = saved;
     assert.equal((await register('down.user@test.com')).status, 201);

@@ -7,7 +7,7 @@ import { config } from '../config.js';
 import { AppError } from '../errors.js';
 import { registerSchema, loginSchema, verifyEmailSchema, resendSchema } from '../schemas.js';
 import { signToken } from '../middleware/auth.js';
-import { sendVerificationEmail, emailProvider } from '../services/mailer.js';
+import { sendVerificationEmail, emailProvider, describeMailError } from '../services/mailer.js';
 
 const router = Router();
 
@@ -61,6 +61,14 @@ async function issueVerification(user) {
   };
 }
 
+function mailFailure(err) {
+  const reason = describeMailError(err);
+  console.error(`Verification e-mail failed (${emailProvider()}): ${reason} | ${err.message}`);
+  const e = new AppError(502, 'The verification e-mail could not be sent, try again later', 'EmailFailed');
+  e.reason = reason;
+  return e;
+}
+
 router.post('/register', async (req, res) => {
   const { email, password, profile } = registerSchema.parse(req.body);
   const user = {
@@ -83,8 +91,7 @@ router.post('/register', async (req, res) => {
   } catch (err) {
     await users.deleteOne({ _id: insertedId }); // the address can be registered again
     if (err instanceof AppError) throw err;
-    console.error('Verification e-mail failed:', err.message);
-    throw new AppError(502, 'The verification e-mail could not be sent, try again later', 'EmailFailed');
+    throw mailFailure(err);
   }
 });
 
@@ -131,8 +138,7 @@ router.post('/resend-verification', async (req, res) => {
     issued = await issueVerification(user);
   } catch (err) {
     if (err instanceof AppError) throw err;
-    console.error('Verification e-mail failed:', err.message);
-    throw new AppError(502, 'The verification e-mail could not be sent, try again later', 'EmailFailed');
+    throw mailFailure(err);
   }
   res.json({ ...generic, ...(issued.demoCode && { delivery: issued.delivery, demoCode: issued.demoCode }) });
 });

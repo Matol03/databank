@@ -13,6 +13,29 @@ export function configProblem() {
   return null;
 }
 
+/** Environment value without surrounding whitespace or quotes (a common copy-paste mistake in hosting dashboards). */
+const env = (name) => {
+  const v = process.env[name];
+  if (v === undefined) return undefined;
+  const t = v.trim().replace(/^(['"])(.*)$/, '$2').trim();
+  return t === '' ? undefined : t;
+};
+
+/**
+ * SMTP settings. Port 465 always uses implicit TLS and 587/25 always use STARTTLS, whatever SMTP_SECURE says
+ * (a mismatch fails with "wrong version number"). Gmail app passwords are shown with spaces: they are removed.
+ */
+function smtpConfig() {
+  const host = env('SMTP_HOST');
+  if (!host) return null;
+  const port = Number(env('SMTP_PORT') || 587);
+  const secure = port === 465 ? true : [587, 25, 2525].includes(port) ? false : env('SMTP_SECURE') === 'true';
+  const user = env('SMTP_USER');
+  let pass = env('SMTP_PASS');
+  if (pass && /gmail\.com|googlemail\.com/i.test(host)) pass = pass.replace(/\s+/g, '');
+  return { host, port, secure, auth: user ? { user, pass } : undefined };
+}
+
 export const config = {
   port: Number(process.env.PORT || 3000),
   mongoUri: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017',
@@ -27,14 +50,9 @@ export const config = {
   verificationTtlMs: Number(process.env.EMAIL_CODE_TTL_MINUTES || 15) * 60_000,
   verificationMaxAttempts: 5,
   verificationResendMs: 60_000,
-  smtp: process.env.SMTP_HOST ? {
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === 'true' || Number(process.env.SMTP_PORT) === 465,
-    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
-  } : null,
+  smtp: smtpConfig(),
   // HTTP e-mail API alternative to SMTP (https://resend.com); used when RESEND_API_KEY is set and SMTP_HOST is not
-  resendApiKey: process.env.RESEND_API_KEY || null,
+  resendApiKey: env('RESEND_API_KEY') || null,
   mailFrom: process.env.MAIL_FROM || (process.env.RESEND_API_KEY && !process.env.SMTP_HOST ? 'Wayfarer <onboarding@resend.dev>' : 'Wayfarer <no-reply@wayfarer.local>'),
   // Without a mail provider the code cannot be delivered: in "demo" delivery the code is returned by the API and shown
   // in the UI. Set EMAIL_DEMO_MODE=false to forbid that (registration then requires a working provider).

@@ -19,7 +19,7 @@ function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;',
 function imageFor(item){if(item.imageUrl){try{const u=new URL(item.imageUrl,location.origin);if(u.protocol==='https:'||u.origin===location.origin)return u.href;}catch(e){}}return PHOTOS[item.category]||PHOTOS.nature;}
 function money(item){const n=Number(item.avgDailyCostUSD);if(Number.isFinite(n)&&n>0)return '$'+Math.round(n)+' / day';return ({1:'Budget friendly',2:'Moderate',3:'Upscale',4:'Luxury'}[item.priceLevel]||'Explore');}
 function toast(message,error){const el=document.createElement('div');el.className='toast'+(error?' error':'');el.textContent=message;$('#toast').append(el);setTimeout(()=>el.remove(),3600);}
-async function api(path,options){options=options||{};const headers=new Headers(options.headers||{});if(options.body!==undefined)headers.set('Content-Type','application/json');if(state.token)headers.set('Authorization','Bearer '+state.token);let response;try{response=await fetch(API+path,{method:options.method||'GET',headers,body:options.body===undefined?undefined:JSON.stringify(options.body)});}catch(e){throw new Error('The server could not be reached. Check the deployment and try again.');}const body=await response.json().catch(()=>null);if(!response.ok){const err=new Error((body&&body.message)||('Request failed ('+response.status+').'));err.status=response.status;err.code=body&&body.error;throw err;}return body;}
+async function api(path,options){options=options||{};const headers=new Headers(options.headers||{});if(options.body!==undefined)headers.set('Content-Type','application/json');if(state.token)headers.set('Authorization','Bearer '+state.token);let response;try{response=await fetch(API+path,{method:options.method||'GET',headers,body:options.body===undefined?undefined:JSON.stringify(options.body)});}catch(e){throw new Error('The server could not be reached. Check the deployment and try again.');}const body=await response.json().catch(()=>null);if(!response.ok){const err=new Error((body&&body.message)||('Request failed ('+response.status+').'));err.status=response.status;err.code=body&&body.error;err.reason=body&&body.reason;throw err;}return body;}
 function showDialog(id){const d=$(id);if(d&&!d.open)d.showModal();}
 function closeDialog(id){const d=$(id);if(d&&d.open)d.close();}
 function showAuth(mode){setAuthMode(mode||'login');showDialog('#auth-dialog');}
@@ -131,7 +131,7 @@ $('#register-form').addEventListener('submit',async e=>{
     f.reset();
     showVerify(r.email,r);
     authMessage(r.delivery==='email'?'Account created. We sent the code to '+r.email+' — check the spam folder if it does not arrive within a minute.':'Account created. Enter the code below to activate it.',true);
-  }catch(err){authMessage(err.message);}
+  }catch(err){authMessage(err.reason?err.message+' — '+err.reason:err.message);}
   finally{busy(f,false);}
 });
 async function verifyFromLink(){const params=new URLSearchParams(location.search);const token=params.get('verify');if(!token)return false;params.delete('verify');history.replaceState(null,'',location.pathname+(params.toString()?'?'+params:'')+location.hash);try{const r=await api('/auth/verify-email',{method:'POST',body:{token}});await finishLogin(r);toast('Your e-mail is confirmed. Welcome to Wayfarer!');}catch(e){showAuth('login');authMessage(e.message+' Sign in to request a new code.');}return true;}
